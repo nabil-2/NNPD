@@ -1,0 +1,116 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{svg}
+\usepackage{caption}
+
+\title{Investigation of Prior Dependence on Parameterized Neural Networks}
+\author{Nabil Salama}
+\date{October - December 2025}
+
+\usepackage[a4paper,margin=25mm]{geometry}
+
+\begin{document}
+
+\maketitle\textit{}
+
+\section{Introduction}
+This project aims at investigating the influence of different prior distributions on the performance of parameterized neural networks.
+
+\section{Parameterized Neural Networks}
+Parameterized neural networks are a type of neural network where a rather simple change is made:
+A parameter $\theta$ is given as an additional input to the classifier, where the input data can depend on $\theta$.
+It is often the case in physical applications, that the data is parameter dependent. This would require the training of a separate
+model for every parameter set. As a solution to this issue, parameterized neural networks are trained on data from a finite set of
+parameters, which the model learns to interpolate between, allowing one model to cover the whole parameter space.
+
+\section{Neural Ration Estimation}
+
+\section{Proof of Concept: Toy Example}
+
+The toy example classifier is a dense parameterized neural network with three hidden layers of 64 units each, using ReLU activations.
+The input is one data point $x$ and one parameter $\theta$, training was done on a 100k sample set split into 70\% training, 15\% validation and 15\% test data
+and using the Adam optimizer with learning rate $10^{-3}$ for 5 epochs and batch size 128. Binary cross entropy was used as loss function.
+
+\subsection{Parameterized Neural Networks}
+First, two different parameterized neural networks are trained, where one is given a parameter on which the data depends, while the other was
+given a random uniform parameter, this is realized by two datasets $A$ and $B$ respecitvely.
+Data is chosen as a 1D Gaussian with standard deviation $\sigma=1$.
+For the class with label 0 of the parameter-dependent dataset $A$ the mean is $\mu = \theta$, the rest of the data is produced with a mean independent of $\theta$,
+i.e. $\mu = 0$ or $\mu=\hat\theta$ where $\theta, \hat\theta \thicksim U(-5, 5)$.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+\textbf{Dataset} & $X_0$ & $Y_0$ & $X_1$ & $Y_1$ \\
+\hline
+$A$ & $x\thicksim\mathcal{N}(\mu=\theta, \sigma=1), \theta$ & ${0}$ & $x\thicksim\mathcal{N}(\mu=0, \sigma=1), \theta$ & {1} \\
+\hline
+$B$ & $x\thicksim\mathcal{N}(\mu=\hat\theta, \sigma=1), \theta$ & ${0}$ & $x\thicksim\mathcal{N}(\mu=0, \sigma=1), \theta$ & {1} \\
+\hline
+\end{tabular}
+\caption{Definition of datasets A and B used for training the parameterized neural networks.}
+\label{tab:datasets1}
+\end{table}
+
+The training resulted in a significantly better performance of the parameter-dependent model on the test dataset as shown in table \ref{tab:results1}.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{|c|c|c|c|}
+\hline
+\textbf{Dataset} & \textbf{Loss} & \textbf{Accuracy} & \textbf{AUC} \\
+\hline
+$A$ & $0.3058$ & $0.8389$ & $0.9370$ \\
+\hline
+$B$ & $0.4501$ & $0.7850$ & $0.8402$ \\
+\hline
+\end{tabular}
+\caption{Results of trained parameterized neural networks on test datasets for data configuration A and B.}
+\label{tab:results1}
+\end{table}
+
+This shows that an additional information in form of a parameter will improve performance for data discrimination tasks.
+Looking back, this test was unnecessary, since the result is obvious and expected. However, it served as a good starting point into the project and understanding the topic. 
+
+
+\subsection{Existence of Prior Dependence}
+
+The first step of this project towards understanding prior dependence is to verify that it can potentially exist.
+To show this, the effect of different prior distributions on the posterior, which is calculated via neural ratio estimation, is investigated.
+Data is drawn from a 1D Gaussian as follows:
+
+\begin{align*}
+X_0 = (x\thicksim \mathcal{N}(\mu=\hat\theta, \sigma=1), \tilde\theta), \quad Y_0 = 0 \\
+X_1 = (x\thicksim \mathcal{N}(\mu=\theta, \sigma=1), \theta), \quad Y_1 = 1
+\end{align*}
+
+Where $\theta, \hat\theta, \tilde\theta\thicksim P(\theta)|_{[0, 10]}$ is drawn from some prior distribution $P(\theta)$ normalized to the interval $[0, 10]$.
+
+\begin{figure}[ht]
+    \centering
+    \begin{minipage}[c]{0.48\textwidth}
+        \centering
+        \includesvg[width=\linewidth]{figs/toy_priors.svg}
+        \captionof{figure}{normalized prior distributions}
+        \label{fig:example}
+    \end{minipage}\hfill
+    \begin{minipage}[c]{0.48\textwidth}
+        \centering
+        \begin{tabular}{|c|c|}
+            \hline
+            \textbf{Name} & $p(\theta)$ \\ \hline
+            \textbf{Uniform} & $1$ \\ \hline
+            \textbf{Normal} & $\exp\left(-\frac{(x-\mu)^2}{2\sigma^2}\right)$ \\ \hline
+            \textbf{Exponential} & $\exp(-\lambda x)$ \\ \hline
+            \textbf{Gamma} & $x^{\alpha-1} \exp\left(-x / \theta \right)$ \\ \hline
+            \textbf{Sinusoidal} & $\sin\left(\omega x \right)+b$ \\ \hline
+        \end{tabular}
+        \captionof{table}{unnormalized prior distributions}
+        \label{tab:4x2}
+    \end{minipage}
+\end{figure}
+
+\end{document}
