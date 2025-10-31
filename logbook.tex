@@ -5,7 +5,7 @@
 \usepackage{svg}
 \usepackage{caption}
 
-\title{Investigation of Prior Dependence on Parameterized Neural Networks}
+\title{Logbook: Investigation of Prior Dependence on Parameterized Neural Networks}
 \author{Nabil Salama}
 \date{October - December 2025}
 
@@ -26,6 +26,7 @@ model for every parameter set. As a solution to this issue, parameterized neural
 parameters, which the model learns to interpolate between, allowing one model to cover the whole parameter space.
 
 \section{Neural Ration Estimation}
+TODO
 
 \section{Proof of Concept: Toy Example}
 
@@ -35,10 +36,10 @@ and using the Adam optimizer with learning rate $10^{-3}$ for 5 epochs and batch
 
 \subsection{Parameterized Neural Networks}
 First, two different parameterized neural networks are trained, where one is given a parameter on which the data depends, while the other was
-given a random uniform parameter, this is realized by two datasets $A$ and $B$ respecitvely.
+given a random uniform parameter, which is realized by two datasets $A$ and $B$ respecitvely.
 Data is chosen as a 1D Gaussian with standard deviation $\sigma=1$.
 For the class with label 0 of the parameter-dependent dataset $A$ the mean is $\mu = \theta$, the rest of the data is produced with a mean independent of $\theta$,
-i.e. $\mu = 0$ or $\mu=\hat\theta$ where $\theta, \hat\theta \thicksim U(-5, 5)$.
+i.e. $\mu = 0$ or $\mu=\hat\theta$ where $\theta, \hat\theta \thicksim U(-5, 5)$ are drawn from a uniform distribution.
 
 \begin{table}[ht]
 \centering
@@ -72,7 +73,7 @@ $B$ & $0.4501$ & $0.7850$ & $0.8402$ \\
 \label{tab:results1}
 \end{table}
 
-This shows that an additional information in form of a parameter will improve performance for data discrimination tasks.
+This shows that an additional information in the form of a parameter will improve performance for data discrimination tasks.
 Looking back, this test was unnecessary, since the result is obvious and expected. However, it served as a good starting point into the project and understanding the topic. 
 
 
@@ -83,11 +84,11 @@ To show this, the effect of different prior distributions on the posterior, whic
 Data is drawn from a 1D Gaussian as follows:
 
 \begin{align*}
-X_0 = (x\thicksim \mathcal{N}(\mu=\hat\theta, \sigma=1), \tilde\theta), \quad Y_0 = 0 \\
-X_1 = (x\thicksim \mathcal{N}(\mu=\theta, \sigma=1), \theta), \quad Y_1 = 1
+X_0 = (x\thicksim \mathcal{N}(\mu=\hat\theta, \sigma_d=1), \tilde\theta), \quad Y_0 = 0 \\
+X_1 = (x\thicksim \mathcal{N}(\mu=\theta, \sigma_d=1), \theta), \quad Y_1 = 1
 \end{align*}
 
-Where $\theta, \hat\theta, \tilde\theta\thicksim P(\theta)|_{[0, 10]}$ is drawn from some prior distribution $P(\theta)$ normalized to the interval $[0, 10]$.
+Where $\theta, \hat\theta, \tilde\theta\thicksim p(\theta)|_{[0, 10]}$ is drawn from some prior distribution $p(\theta)$ normalized to the interval $[0, 10]$.
 
 \begin{figure}[ht]
     \centering
@@ -102,15 +103,80 @@ Where $\theta, \hat\theta, \tilde\theta\thicksim P(\theta)|_{[0, 10]}$ is drawn 
         \begin{tabular}{|c|c|}
             \hline
             \textbf{Name} & $p(\theta)$ \\ \hline
-            \textbf{Uniform} & $1$ \\ \hline
-            \textbf{Normal} & $\exp\left(-\frac{(x-\mu)^2}{2\sigma^2}\right)$ \\ \hline
-            \textbf{Exponential} & $\exp(-\lambda x)$ \\ \hline
-            \textbf{Gamma} & $x^{\alpha-1} \exp\left(-x / \theta \right)$ \\ \hline
-            \textbf{Sinusoidal} & $\sin\left(\omega x \right)+b$ \\ \hline
+            Uniform & $1$ \\ \hline
+            Normal & $\exp\left(-\frac{(x-\mu)^2}{2\sigma^2}\right)$ \\ \hline
+            Exponential & $\exp(-\lambda x)$ \\ \hline
+            Gamma & $x^{\alpha-1} \exp\left(-x / \theta \right)$ \\ \hline
+            Sinusoidal & $\sin\left(\omega x \right)+b$ \\ \hline
         \end{tabular}
         \captionof{table}{unnormalized prior distributions}
         \label{tab:4x2}
     \end{minipage}
 \end{figure}
+
+The classifier presented earlier is trained to classify between $X_0$ and $X_1$,
+i.e. estimating the ratio $p(\theta,x)/(p(x)p(\theta)) = p(\theta|x)/p(\theta)$ for ideal classifiers by the "likelihood ratio trick".
+This allows for the calculation of the posterior $p(\theta|x)$ and inference of the parameter $\theta$ for given data $x$.
+
+
+The first attempt of calculating the posterior for different data points $x$ is shown in figure \ref{fig:prior_per_parameter_1e0}.
+From those distributions over $\theta$ (constant in $x$), the value $x_m = argmax(p(\theta|x))$ is inferred and undestood as the mean
+of the distribution $x$ is drawn from, because that is how $X_1$ was constructed.
+
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/std_1e0/toy_prior_per_parameter_std1e0.svg}
+    \caption{Posterior distributions of a classifier trained on data drawn from a normal distribution with $\sigma_d=0.1$ for different prior choices. The inferred parameter is denoted with $x_m$ and a dashed line shows the data point $x$ on which $\theta$ depends.}
+    \label{fig:prior_per_parameter_1e0}
+\end{figure}
+
+
+The results not only shows a significant dependence of the posterior distribution on the prior choice,
+but also a dependence of the inference quality on the position of the inferred parameter within the parameter range as seen in figure \ref{fig:errorbars_1e0}.
+The inference itself shows large errors as can be seen in the same figure.
+Also, it shall be noted that the posterior distributions are best for the choice of a uniform prior.
+This behaviour is beyond the expected extend and will be investigated further in the following. The distribution of the neural network output,
+i.e. the posterior-prior ratio $p(\theta|x)/p(\theta)$ is shown in figure \ref{fig:parameter_per_prior_1e0}.
+It is immediatley obvious that those distributions are much better suited for parameter inference than the posteriors, which should not be the case
+and thus hints at an error in the calculation of the posteriors.
+
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/std_1e0/toy_prior_per_ratios_std1e0.svg}
+    \caption{Posterior-Prior ratio of a classifier trained on data drawn from a normal distribution with $\sigma_d=0.1$ for different prior choices. The inferred parameter is denoted with $x_m$ and a dashed line shows the data point $x$ on which $\theta$ depends.}
+    \label{fig:parameter_per_prior_1e0}
+\end{figure}
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/std_1e0/toy_errorbars_std1e0.svg}
+    \caption{Uncertainty on the inferred parameter for different prior choices for a classifier trained on data drawn from a normal distribution with $\sigma_d=0.1$.}
+    \label{fig:errorbars_1e0}
+\end{figure}
+
+
+The inference quality of the parameter was also studied for data drawn from a normal distribution with smaller standard deviation $\sigma_d=0.1$.
+Naturally, the inference error decreased, but the trend of the error along the parameter range remained similar to the case of $\sigma_d=1$ as it can be best seen for the exponential prior in figure \ref{fig:prior_per_parameter_1e-1} and \ref{fig:errorbars_1e-1}.
+
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/std_1e-1/toy_prior_per_parameter_std1e-1.svg}
+    \caption{Posterior distributions of a classifier trained on data drawn from a normal distribution with $\sigma_d=0.1$ for different prior choices. The inferred parameter is denoted with $x_m$ and a dashed line shows the data point $x$ on which $\theta$ depends.}
+    \label{fig:prior_per_parameter_1e-1}
+\end{figure}
+%\begin{figure}[ht]
+%    \centering
+%    \includesvg[width=0.8\linewidth]{figs/std_1e-1/toy_prior_per_ratios_std1e-1.svg}
+%    \caption{Posterior-Prior ratio of a classifier trained on data drawn from a normal distribution with $\sigma_d=0.1$ for different prior choices. The inferred parameter is denoted with $x_m$ and a dashed line shows the data point $x$ on which $\theta$ depends.}
+%    \label{fig:parameter_per_prior_1e-1}
+%\end{figure}
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/std_1e-1/toy_errorbars_std1e-1.svg}
+    \caption{Uncertainty on the inferred parameter for different prior choices for a classifier trained on data drawn from a normal distribution with $\sigma_d=0.1$.}
+    \label{fig:errorbars_1e-1}
+\end{figure}
+
+
+
 
 \end{document}
