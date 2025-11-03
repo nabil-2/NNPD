@@ -4,6 +4,8 @@
 \usepackage{amsmath}
 \usepackage{svg}
 \usepackage{caption}
+\usepackage{placeins}
+
 
 \title{Logbook: Investigation of Prior Dependence on Parameterized Neural Networks}
 \author{Nabil Salama}
@@ -25,7 +27,7 @@ It is often the case in physical applications, that the data is parameter depend
 model for every parameter set. As a solution to this issue, parameterized neural networks are trained on data from a finite set of
 parameters, which the model learns to interpolate between, allowing one model to cover the whole parameter space.
 
-\section{Neural Ration Estimation}
+\section{Neural Ratio Estimation}
 TODO
 
 \section{Proof of Concept: Toy Example}
@@ -114,6 +116,9 @@ Where $\theta, \hat\theta, \tilde\theta\thicksim p(\theta)|_{[0, 10]}$ is drawn 
     \end{minipage}
 \end{figure}
 
+Warning: The following few paragraphs contain a mistake in the calculation of the posterior, which is corrected later on.
+Since this is a logbook, the mistake is kept to show the project and thought process and how the error was found.
+
 The classifier presented earlier is trained to classify between $X_0$ and $X_1$,
 i.e. estimating the ratio $p(\theta,x)/(p(x)p(\theta)) = p(\theta|x)/p(\theta)$ for ideal classifiers by the "likelihood ratio trick".
 This allows for the calculation of the posterior $p(\theta|x)$ and inference of the parameter $\theta$ for given data $x$.
@@ -153,6 +158,8 @@ and thus hints at an error in the calculation of the posteriors.
     \label{fig:errorbars_1e0}
 \end{figure}
 
+\FloatBarrier
+
 
 The inference quality of the parameter was also studied for data drawn from a normal distribution with smaller standard deviation $\sigma_d=0.1$.
 Naturally, the inference error decreased, but the trend of the error along the parameter range remained similar to the case of $\sigma_d=1$ as it can be best seen for the exponential prior in figure \ref{fig:prior_per_parameter_1e-1} and \ref{fig:errorbars_1e-1}.
@@ -176,7 +183,28 @@ Naturally, the inference error decreased, but the trend of the error along the p
     \label{fig:errorbars_1e-1}
 \end{figure}
 
+\FloatBarrier
 
+Until now, the posteriors were calculated using the ratio $p(\theta|x)/p(\theta)$ directly obtained from the classifier output,
+i.e. $p(\theta|x)/p(\theta) = f_\theta(x)$, where $f_\theta$ is the classifier. However, the ratios is actually given by $p(\theta|x)/p(\theta) = f_\theta(x)/(1-f_\theta(x))$.
+This confusion arose due to the fact that some papers refer to $f_\theta(x)$ as the pre-activated output of the neural network, i.e. the actual output would be $\sigma(f_\theta(x))$,
+where $\sigma$ is the activation function. In this case, the ratio would indeed be given by $f_\theta(x)$ according to the paper (TODO: insert references, also generally).
+For the ratio estimation, usually the literature refers to the activated output with $f_\theta(x) = \sigma(z)$, where $z$ is the pre-activated output of the neural network.
+This means that the y-labels in the previous figures \ref{fig:prior_per_parameter_1e0}, \ref{fig:parameter_per_prior_1e0}, \ref{fig:prior_per_parameter_1e-1} were wrong.
+Recalculating the posteriors with the correct formula results in the actual posterior shown in figure \ref{fig:prior_per_parameter_correct_1e0} with inference quality shown in \ref{fig:errorbars_correct_1e0}.
+It can be seen that inference quality greatly improved for all prior choices, especially for the asymmetric priors like the exponential and gamma prior.
 
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/std_1e0/toy_correct_prior_per_parameter_std1e0.svg}
+    \caption{Posterior distributions of a classifier trained on data drawn from a normal distribution with $\sigma_d=1$ for different prior choices. The inferred parameter is denoted with $x_m$ and a dashed line shows the data point $x$ on which $\theta$ depends.}
+    \label{fig:prior_per_parameter_correct_1e0}
+\end{figure}
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/std_1e0/toy_correct_errorbars_std1e0.svg}
+    \caption{Uncertainty on the inferred parameter for different prior choices for a classifier trained on data drawn from a normal distribution with $\sigma_d=1$.}
+    \label{fig:errorbars_correct_1e0}
+\end{figure}
 
 \end{document}
