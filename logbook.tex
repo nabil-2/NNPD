@@ -141,7 +141,7 @@ but also a dependence of the inference quality on the position of the inferred p
 The inference itself shows large errors as can be seen in the same figure.
 Also, it shall be noted that the posterior distributions are best for the choice of a uniform prior.
 This behaviour is beyond the expected extend and will be investigated further in the following. The distribution of the neural network output,
-i.e. the posterior-prior ratio $p(\theta|x)/p(\theta)$ is shown in figure \ref{fig:parameter_per_prior_1e0}.
+i.e. the posterior-prior ratio $p(\theta|x)/p(\theta)$ is shown in figure \ref{fig:parameter_per_prior_1e0} with $x_m = argmax(p(\theta|x))$.
 It is immediatley obvious that those distributions are much better suited for parameter inference than the posteriors, which should not be the case
 and thus hints at an error in the calculation of the posteriors.
 
@@ -192,7 +192,6 @@ where $\sigma$ is the activation function. In this case, the ratio would indeed 
 For the ratio estimation, usually the literature refers to the activated output with $f_\theta(x) = \sigma(z)$, where $z$ is the pre-activated output of the neural network.
 This means that the y-labels in the previous figures \ref{fig:prior_per_parameter_1e0}, \ref{fig:parameter_per_prior_1e0}, \ref{fig:prior_per_parameter_1e-1} were wrong.
 Recalculating the posteriors with the correct formula results in the actual posterior shown in figure \ref{fig:prior_per_parameter_correct_1e0} with inference quality shown in \ref{fig:errorbars_correct_1e0}.
-It can be seen that inference quality greatly improved for all prior choices, especially for the asymmetric priors like the exponential and gamma prior.
 
 \begin{figure}[ht]
     \centering
@@ -205,6 +204,30 @@ It can be seen that inference quality greatly improved for all prior choices, es
     \includesvg[width=0.8\linewidth]{figs/std_1e0/toy_correct_errorbars_std1e0.svg}
     \caption{Uncertainty on the inferred parameter for different prior choices for a classifier trained on data drawn from a normal distribution with $\sigma_d=1$.}
     \label{fig:errorbars_correct_1e0}
+\end{figure}
+
+\FloatBarrier
+
+It can be seen that inference quality greatly improved for all prior choices, especially for the asymmetric priors like the exponential and gamma prior.
+However, one of the reasons which previously indicated an error in the calculation of the posterior still remains,
+namely that the inference quality is still better when using the ratio $p(\theta|x)/p(\theta)$ instead of the posterior $p(\theta|x)$ itself.
+This can be seen in figures \ref{fig:correct_error_and_hpd_width_std1e0} and \ref{fig:correct_error_and_hpd_width_ratios_std1e0},
+where the inference bias and the width of the 68\% highest posterior density (HPD) interval are shown.
+For inference using the ratio, the bias is generally much smaller while the HPD width stays similar.
+Most notably, the dependence of the bias on the prior and parameter value is basically only present for inference using the posterior, which is most significant for the gamma and sinusoidal prior distribution.
+This means that the inference using the ratio does not show a significant prior dependence while the posterior does, which cannot be explained yet.
+
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/std_1e0/toy_correct_error_and_hpd_width_std1e0.svg}
+    \caption{Errors of the parameters inferred from the prior distribution $p(\theta|x)$ for different prior choices for a classifier trained on data drawn from a normal distribution with $\sigma_d=1$.}
+    \label{fig:correct_error_and_hpd_width_std1e0}
+\end{figure}
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/std_1e0/toy_correct_error_and_hpd_width_ratios_std1e0.svg}
+    \caption{Errors of the parameters inferred from the ratio $p(\theta|x)/p(\theta)$ for different prior choices for a classifier trained on data drawn from a normal distribution with $\sigma_d=1$.}
+    \label{fig:correct_error_and_hpd_width_ratios_std1e0}
 \end{figure}
 
 \end{document}
