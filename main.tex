@@ -27,6 +27,10 @@ important: \\
 - toy example with n parameters \\
 - explain code structure \\
 
+- combine sec 2 and 3 / problem setup/background and subsections
+- one section: gaussian examples
+- one section: physical examples
+
 \section{Abstract}
 The influence of different prior distributions on the performance of parameterized neural networks is mostly unexplored. This research aims to investigate and research how to leverage this dependence to improve parameter inference.
 
@@ -151,12 +155,30 @@ The plausibility of the model results can be checked by analyzing the distributi
 
 \begin{align*}
 r(x|\theta) = \frac{p(\theta,x)}{p(x)p(\theta)}=\frac{p(\theta|x)}{p(\theta)}
-\end{align*}
+\end{align*},
 thus
 \begin{align*}
 1=\int p(x|\theta_0) dx = \int r(x|\theta_0) p(x) dx = \mathbb{E} [r(x|\theta_0)]
 \end{align*}
-holds. This implies that if $\mathbb{E} [r(x|\theta_0)]=1$, then $r(x|\theta_0) = p(x|\theta_0) / p(x) = p(\theta_0 | x) / p(\theta_0)$ is plausible. Thus a value of $\mathbb{E} [r(x|\theta_0)]=1$ that significally deviates from $1$ shows that the classifier is not ideal or any other conditions required for the likelihood ratio trick does not hold. Figure \ref{fig:reweighted_distributions_4_6} shows values of $\mathbb{E}[r(x|\theta_0)]$ for different parameter values and different classifiers trained on different prior distributions.
+should hold. This implies that if $\mathbb{E} [r(x|\theta_0)]=1$, then $r(x|\theta_0) = p(x|\theta_0) / p(x) = p(\theta_0 | x) / p(\theta_0)$ is plausible. Thus a value of $\mathbb{E} [r(x|\theta_0)]=1$ that significally deviates from $1$ shows that the classifier is not ideal or any other conditions required for the likelihood ratio trick does not hold. Figure \ref{fig:ratio_violins} shows values of $\mathbb{E}[r(x|\theta_0)]$ for different parameter values and different classifiers trained on different prior distributions.
+
+\begin{figure}[ht]
+    \centering
+    \includesvg[width=0.8\linewidth]{figs/config_005/verifications/ratio_violins.svg}
+    \caption{Original data distributions with $\sigma_d=1$ for parameters 4 and 6 and the reweighted distribution to parameter 6. If the reweighted distribution closely resembles the original data distribution, this shows that the likelihood ratio trick conditions hold.}
+    \label{fig:ratio_violins}
+\end{figure}
+
+A more rigorous test of the likelihood ratio trick conditions is to reweight data.
+For it to hold, it means that $f_\theta(x)/(1-f_\theta(x)) = \frac{p(\theta,x)}{p(x)p(\theta)}$ is true for any value of $\theta$ within the considered parameter space.
+Assuming that this is fulfilled, reweighting data drawn from $p(x|\theta_0)$ to $p(x|\theta_1)$ is done as follows:
+The likelihood ratio is calculated as $r(x|\theta) = \frac{p(\theta,x)}{p(x)p(\theta)} = \frac{p(x|\theta)}{p(x)}$ and the ratio of likelihood ratios $R_{01}(x)$ as
+\begin{align*}
+    R_{01}(x) = r(x|\theta_1)/r(x|\theta_0) = \frac{p(x|\theta_1)}{p(x|\theta_0)}
+\end{align*}.
+From there data is drawn from $p(x|\theta_0)$ and reweighted to $p(x|\theta_1) = R_{01}(x) p(x|\theta_0)$, which is then compared to data drawn directly from $p(x|\theta_1)$.
+If the reweighted distribution closely resembles the original data distribution, this shows that the likelihood ratio trick conditions hold.
+
 
 \begin{figure}[ht]
     \centering
