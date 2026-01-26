@@ -47,6 +47,7 @@ def get_data(prior, config, show_output=True):
 
     #parameters
     #parameters_all = generator.uniform(low=data_config["parameter_range"][0], high=data_config["parameter_range"][1], size=3*n_class)
+        
     parameters_all = sample_from_pdf(prior, 3*n_class, data_config["parameter_range"][0], data_config["parameter_range"][1])
     parameters_dependent = parameters_all[:n_class]
     parameters_independent = parameters_all[n_class:2*n_class]
