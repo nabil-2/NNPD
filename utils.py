@@ -1,7 +1,11 @@
 import numpy as np
 import torch, json
 from pathlib import Path
-from scipy.special import gamma as gamma_func
+try:
+    from scipy.special import gamma as gamma_func
+except ImportError:
+    print("Scipy not found. Gamma distribution will not be available.")
+    #from math import gamma as gamma_func
 
 generator = np.random.default_rng(0)
 
