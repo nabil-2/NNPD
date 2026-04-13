@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import itertools
+import math
 
 import numpy as np
 
@@ -53,6 +53,31 @@ def normalize(function, parameter_range, n_dimensions, fct_args):
     return result_fct
 
 
+def _standard_normal_cdf(x):
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+def _truncated_normal_integral(parameter_range, n_dimensions, mean, std):
+    low, high = parameter_range
+    delta_cdf = _standard_normal_cdf((high - mean) / std) - _standard_normal_cdf((low - mean) / std)
+    return (std * math.sqrt(2.0 * math.pi) * delta_cdf) ** n_dimensions
+
+
+def _truncated_exponential_integral(parameter_range, n_dimensions, lam):
+    low, high = parameter_range
+    support_low = max(low, 0.0)
+    if high <= support_low:
+        return 0.0
+    one_dim = (math.exp(-lam * support_low) - math.exp(-lam * high)) / lam
+    return one_dim**n_dimensions
+
+
+def _attach_prior_metadata(prior_fn, *, integral_over_box, support_bounds):
+    prior_fn.integral_over_box = float(integral_over_box)
+    prior_fn.support_bounds = tuple(float(v) for v in support_bounds)
+    return prior_fn
+
+
 def uniform(x, parameter_range, n_dimensions):
     x = np.asarray(x)
     result = np.full(
@@ -103,6 +128,11 @@ def build_priors(config, generator):
         return uniform(x, parameter_range, n_dimensions)
 
     uniform_pdf.__name__ = "uniform"
+    _attach_prior_metadata(
+        uniform_pdf,
+        integral_over_box=1.0,
+        support_bounds=parameter_range,
+    )
 
     def draw_uniform(shape):
         shape = _coerce_shape(shape)
@@ -110,47 +140,53 @@ def build_priors(config, generator):
 
     draw_uniform.__name__ = "uniform"
 
-    normal_pdf = normalize(normal, parameter_range, n_dimensions, prior_args["normal"])
+    normal_mean, normal_std = prior_args["normal"]
+    normal_integral = _truncated_normal_integral(
+        parameter_range,
+        n_dimensions,
+        mean=normal_mean,
+        std=normal_std,
+    )
+
+    def normal_pdf(x):
+        return normal(x, normal_mean, normal_std) / normal_integral
+
+    normal_pdf.__name__ = "normal"
+    _attach_prior_metadata(
+        normal_pdf,
+        integral_over_box=1.0,
+        support_bounds=parameter_range,
+    )
 
     def draw_normal(shape):
         shape = _coerce_shape(shape)
-        mean, std = prior_args["normal"]
-        return generator.normal(mean, std, size=(*shape, n_dimensions))
+        return generator.normal(normal_mean, normal_std, size=(*shape, n_dimensions))
 
     draw_normal.__name__ = "normal"
 
-    exponential_pdf = normalize(
-        exponential,
+    exponential_lam = prior_args["exponential"][0]
+    exponential_integral = _truncated_exponential_integral(
         parameter_range,
         n_dimensions,
-        prior_args["exponential"],
+        lam=exponential_lam,
+    )
+
+    def exponential_pdf(x):
+        return exponential(x, exponential_lam) / exponential_integral
+
+    exponential_pdf.__name__ = "exponential"
+    _attach_prior_metadata(
+        exponential_pdf,
+        integral_over_box=1.0,
+        support_bounds=parameter_range,
     )
 
     def draw_exponential(shape):
         shape = _coerce_shape(shape)
-        lam = prior_args["exponential"][0]
-        return generator.exponential(1 / lam, size=(*shape, n_dimensions))
+        return generator.exponential(1.0 / exponential_lam, size=(*shape, n_dimensions))
 
     draw_exponential.__name__ = "exponential"
 
-    grid_pdf = normalize(grid_fct, parameter_range, n_dimensions, prior_args["grid"])
-
-    def draw_grid(shape):
-        shape = _coerce_shape(shape)
-        step = prior_args["grid"][0]
-        n_points_per_axis = int((param_max - param_min) / step) + 1
-        grid_points = np.linspace(param_min, param_max, n_points_per_axis)
-        all_combinations = np.array(
-            list(itertools.product(grid_points, repeat=n_dimensions)),
-            dtype=float,
-        )
-        n_total = int(np.prod(shape))
-        indices = generator.choice(all_combinations.shape[0], size=n_total, replace=True)
-        return all_combinations[indices].reshape(*shape, n_dimensions)
-
-    draw_grid.__name__ = "grid"
-
-    _ = (grid_pdf, draw_grid)
     priors = [uniform_pdf, normal_pdf, exponential_pdf]
     prior_samplers = [draw_uniform, draw_normal, draw_exponential]
     return priors, prior_samplers, param_min, param_max

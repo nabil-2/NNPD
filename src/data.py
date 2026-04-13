@@ -5,13 +5,15 @@ import torch
 
 
 def draw_data(args, config, generator):
-    args = np.asarray(args, dtype=float)
-    shape = args.shape
-    data = np.empty(shape, dtype=float)
-    covariance = np.eye(config["data"]["n_parameters"]) * config["data"]["std_dev"] ** 2
-    for i in range(shape[0]):
-        data[i] = generator.multivariate_normal(mean=args[i], cov=covariance, size=1).squeeze()
-    return data
+    args = np.asarray(args, dtype=np.float32)
+    if args.ndim != 2:
+        raise ValueError(f"Expected args with shape (n_samples, n_dimensions), got {args.shape}.")
+    noise = generator.normal(
+        loc=0.0,
+        scale=float(config["data"]["std_dev"]),
+        size=args.shape,
+    ).astype(np.float32)
+    return args + noise
 
 
 def get_data(prior_sampler, config, generator, show_output=True):
@@ -64,4 +66,3 @@ def get_data(prior_sampler, config, generator, show_output=True):
         (data_validation, parameters_validation, labels_validation),
         (data_test, parameters_test, labels_test),
     )
-

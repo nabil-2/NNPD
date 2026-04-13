@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 from matplotlib import pyplot as plt
 
+from .posterior import _extract_hpd_level, _extract_map_array
+
 
 def plot_prior_contours(priors, parameter_range, n_parameters, n_points=200, fixed_value=None):
     theta = np.linspace(parameter_range[0], parameter_range[1], n_points)
@@ -161,7 +163,7 @@ def plot_errorbars(
     filename=None,
 ):
     _, parameter_combinations, _ = inference_data
-    true_params = np.asarray(parameter_combinations, dtype=float)
+    true_params = np.asarray(parameter_combinations, dtype=np.float32)
 
     n_dims = len(parameters_post)
     n_posteriors = len(hpds)
@@ -173,25 +175,6 @@ def plot_errorbars(
         figsize=(5 * n_dims, 3.8 * n_posteriors),
         squeeze=False,
     )
-
-    dim_lengths = [len(r) for r in parameters_post]
-
-    def _get_bounds(interval, y_hat):
-        try:
-            arr = np.asarray(interval, dtype=float)
-        except Exception:
-            return y_hat, y_hat
-        if arr.ndim == 1 and arr.size == 2:
-            return float(arr[0]), float(arr[1])
-        if arr.ndim == 2 and arr.shape[1] == 2:
-            mask = (arr[:, 0] <= y_hat) & (y_hat <= arr[:, 1])
-            if np.any(mask):
-                row = arr[np.where(mask)[0][0]]
-            else:
-                mids = 0.5 * (arr[:, 0] + arr[:, 1])
-                row = arr[np.argmin(np.abs(mids - y_hat))]
-            return float(row[0]), float(row[1])
-        return y_hat, y_hat
 
     def _aggregate(values_x, values_y, lower68, upper68, lower95, upper95, widths68):
         keys = np.round(np.asarray(values_x, dtype=float), decimals=12)
@@ -216,41 +199,32 @@ def plot_errorbars(
         return grouped
 
     for i, (prior_name, errors) in enumerate(hpds.items()):
-        posts = all_posteriors[prior_name]
-        n_points = len(posts)
-        y_hat = np.zeros((n_points, n_dims), dtype=float)
-
-        for idx, posterior in enumerate(posts):
-            if isinstance(posterior, dict) and "map" in posterior:
-                y_hat[idx, :] = np.asarray(posterior["map"], dtype=float)
-                continue
-
-            arr = np.asarray(posterior)
-            if arr.ndim == 1:
-                imax = int(np.argmax(arr))
-                multi = np.unravel_index(imax, dim_lengths)
-            else:
-                multi = np.unravel_index(int(np.argmax(arr)), arr.shape)
-            for d in range(n_dims):
-                y_hat[idx, d] = parameters_post[d][multi[d]]
+        y_hat = _extract_map_array(
+            all_posteriors[prior_name],
+            parameters_post=parameters_post,
+            n_dims=n_dims,
+        )
+        intervals68, _ = _extract_hpd_level(errors, level="68", n_dims=n_dims)
+        intervals95, _ = _extract_hpd_level(errors, level="95", n_dims=n_dims)
+        n_points = int(y_hat.shape[0])
+        if intervals68.shape[0] != n_points or intervals95.shape[0] != n_points:
+            raise ValueError(
+                f"For prior '{prior_name}', HPD count does not match posterior count ({n_points})."
+            )
 
         for d in range(n_dims):
             x_true = true_params[:, d]
             y_est = y_hat[:, d]
 
-            yerr68_lower, yerr68_upper = [], []
-            yerr95_lower, yerr95_upper = [], []
-            widths68 = []
-
-            for idx, entry in enumerate(errors):
-                y_estimate = y_est[idx]
-                low68, high68 = _get_bounds(entry["68"][d], y_estimate)
-                low95, high95 = _get_bounds(entry["95"][d], y_estimate)
-                yerr68_lower.append(abs(y_estimate - low68))
-                yerr68_upper.append(abs(high68 - y_estimate))
-                yerr95_lower.append(abs(y_estimate - low95))
-                yerr95_upper.append(abs(high95 - y_estimate))
-                widths68.append(high68 - low68)
+            low68 = intervals68[:, d, 0]
+            high68 = intervals68[:, d, 1]
+            low95 = intervals95[:, d, 0]
+            high95 = intervals95[:, d, 1]
+            yerr68_lower = np.abs(y_est - low68)
+            yerr68_upper = np.abs(high68 - y_est)
+            yerr95_lower = np.abs(y_est - low95)
+            yerr95_upper = np.abs(high95 - y_est)
+            widths68 = high68 - low68
 
             grouped = _aggregate(
                 x_true,
@@ -322,7 +296,7 @@ def plot_errorbars(
 
 def plot_error_and_hpd_width(hpds: dict, inference_data, all_posteriors, parameters_post, filename=None):
     _, parameter_combinations, _ = inference_data
-    true_params = np.asarray(parameter_combinations, dtype=float)
+    true_params = np.asarray(parameter_combinations, dtype=np.float32)
 
     n_dims = len(parameters_post)
     n_posteriors = len(hpds)
@@ -335,37 +309,9 @@ def plot_error_and_hpd_width(hpds: dict, inference_data, all_posteriors, paramet
         squeeze=False,
     )
 
-    dim_lengths = [len(r) for r in parameters_post]
     markers = ["o", "s", "^", "D", "v", "P", "X", "*", "<", ">"]
     blues = plt.cm.Blues(np.linspace(0.45, 0.9, max(n_dims, 2)))
     reds = plt.cm.Reds(np.linspace(0.45, 0.9, max(n_dims, 2)))
-
-    def _parse_hpd_entry(entry, level="68"):
-        raw = entry[level]
-
-        intervals = None
-        interval_combined = None
-
-        if isinstance(raw, dict):
-            intervals = raw.get("intervals", raw.get("interval", None))
-            interval_combined = raw.get("interval_combined", raw.get("combined", None))
-        elif isinstance(raw, (tuple, list)) and len(raw) == 2:
-            intervals, interval_combined = raw[0], raw[1]
-        else:
-            intervals = raw
-
-        intervals = np.asarray(intervals, dtype=float)
-        if interval_combined is None:
-            if intervals.ndim == 2 and intervals.shape[1] == 2:
-                low = float(np.mean(intervals[:, 0]))
-                high = float(np.mean(intervals[:, 1]))
-                interval_combined = np.array([low, high], dtype=float)
-            else:
-                interval_combined = np.array([np.nan, np.nan], dtype=float)
-        else:
-            interval_combined = np.asarray(interval_combined, dtype=float)
-
-        return intervals, interval_combined
 
     def _aggregate_curve_by_x(x, y, decimals=12):
         x_key = np.round(np.asarray(x, dtype=float), decimals=decimals)
@@ -401,33 +347,20 @@ def plot_error_and_hpd_width(hpds: dict, inference_data, all_posteriors, paramet
     all_width_dims, all_bias_dims = [], []
 
     for prior_name, errors in hpds.items():
-        posts = all_posteriors[prior_name]
-        n_points = len(posts)
+        y_hat = _extract_map_array(
+            all_posteriors[prior_name],
+            parameters_post=parameters_post,
+            n_dims=n_dims,
+        )
+        intervals_68, _ = _extract_hpd_level(errors, level="68", n_dims=n_dims)
+        if intervals_68.shape[0] != y_hat.shape[0]:
+            raise ValueError(
+                f"For prior '{prior_name}', HPD count ({intervals_68.shape[0]}) does not match "
+                f"posterior count ({y_hat.shape[0]})."
+            )
 
-        y_hat = np.zeros((n_points, n_dims), dtype=float)
-        for idx, posterior in enumerate(posts):
-            if isinstance(posterior, dict) and "map" in posterior:
-                y_hat[idx, :] = np.asarray(posterior["map"], dtype=float)
-                continue
-
-            arr = np.asarray(posterior)
-            if arr.ndim == 1:
-                imax = int(np.argmax(arr))
-                multi = np.unravel_index(imax, dim_lengths)
-            else:
-                multi = np.unravel_index(int(np.argmax(arr)), arr.shape)
-            for d in range(n_dims):
-                y_hat[idx, d] = parameters_post[d][multi[d]]
-
-        width_dims = np.zeros((n_points, n_dims), dtype=float)
-        bias_dims = np.zeros((n_points, n_dims), dtype=float)
-
-        for i_e, entry in enumerate(errors):
-            intervals, _ = _parse_hpd_entry(entry, level="68")
-            for d in range(n_dims):
-                low, high = float(intervals[d, 0]), float(intervals[d, 1])
-                width_dims[i_e, d] = high - low
-                bias_dims[i_e, d] = 0.5 * (low + high) - true_params[i_e, d]
+        width_dims = intervals_68[:, :, 1] - intervals_68[:, :, 0]
+        bias_dims = y_hat - true_params
 
         width_curves, bias_curves = _aggregate_per_dim_by_true_value(
             true_params,
@@ -536,7 +469,7 @@ def plot_error_and_hpd_width(hpds: dict, inference_data, all_posteriors, paramet
             a3.axhline(0.0, color="0.35", linestyle="--", linewidth=1.0, alpha=0.8, zorder=0)
         a3.set_ylim(*bias_dims_ylim)
         a3.set_xlabel("True value in that dimension")
-        a3.set_ylabel("Avg bias (interval center - true)")
+        a3.set_ylabel("Avg bias (MAP - true)")
         a3.grid(True, alpha=0.3)
         a3.set_title(f"{prior_name}: avg bias per dimension")
         a3.legend(loc="best", fontsize=9, ncol=min(n_dims, 3))
@@ -625,6 +558,7 @@ def plot_reweighted_distributions(
     test_parameters,
     n_bins,
     filename=None,
+    reweighting_distributions=None,
 ):
     x_all = np.concatenate([np.asarray(data_x[0]).ravel(), np.asarray(data_x[1]).ravel()])
     x_min, x_max = x_all.min(), x_all.max()
@@ -664,7 +598,23 @@ def plot_reweighted_distributions(
             label=f"reweighted θ={test_parameters[0]}→{test_parameters[1]}",
         )
 
-        axis.set_title(f"{prior.__name__} prior")
+        title = f"{prior.__name__} prior"
+        if reweighting_distributions is not None and prior.__name__ in reweighting_distributions:
+            weights = np.asarray(reweighting_distributions[prior.__name__], dtype=float).ravel()
+            n_samples = int(weights.size)
+            weight_sum = np.sum(weights)
+            weight_sq_sum = np.sum(np.square(weights))
+            if (
+                n_samples > 0
+                and np.isfinite(weight_sum)
+                and np.isfinite(weight_sq_sum)
+                and weight_sq_sum > 0
+            ):
+                ess = (weight_sum**2) / weight_sq_sum
+            else:
+                ess = 0.0
+            title = f"{title}\nN={n_samples:,} | ESS={int(np.rint(ess)):,}"
+        axis.set_title(title)
         axis.set_xlabel("x")
         axis.set_ylabel("Density")
         axis.set_xlim(x_min, x_max)
@@ -679,3 +629,203 @@ def plot_reweighted_distributions(
         fig.savefig(filename)
     return fig, axes
 
+
+def _binned_median_curve(x, y, n_bins=8):
+    x = np.asarray(x, dtype=float).ravel()
+    y = np.asarray(y, dtype=float).ravel()
+    if x.size == 0 or y.size == 0 or x.size != y.size:
+        return np.asarray([]), np.asarray([])
+    if np.allclose(x, x[0]):
+        return np.asarray([x[0]], dtype=float), np.asarray([np.median(y)], dtype=float)
+
+    edges = np.linspace(np.min(x), np.max(x), int(n_bins) + 1)
+    centers = []
+    medians = []
+    for idx in range(len(edges) - 1):
+        if idx == len(edges) - 2:
+            mask = (x >= edges[idx]) & (x <= edges[idx + 1])
+        else:
+            mask = (x >= edges[idx]) & (x < edges[idx + 1])
+        if np.any(mask):
+            centers.append(0.5 * (edges[idx] + edges[idx + 1]))
+            medians.append(np.median(y[mask]))
+    return np.asarray(centers, dtype=float), np.asarray(medians, dtype=float)
+
+
+def _format_metric(value, digits=3):
+    value = float(value)
+    if np.isnan(value):
+        return "nan"
+    return f"{value:.{digits}g}"
+
+
+def plot_log_ratio_error_vs_distance(model_quality_results, filename=None, n_bins=8):
+    plt.rcParams.update({"font.size": 10})
+    n_priors = len(model_quality_results)
+    ncols = 3
+    nrows = (n_priors + ncols - 1) // ncols
+    fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 4 * nrows))
+    axes = ax.flatten() if isinstance(ax, np.ndarray) else [ax]
+
+    for idx, (prior_name, result) in enumerate(model_quality_results.items()):
+        axis = axes[idx]
+        pair_metrics = result["pair_metrics"]
+        summary = result["summary"]
+        distance = np.asarray(pair_metrics["distance"], dtype=float)
+        rmse = np.asarray(pair_metrics["rmse_log_r10"], dtype=float)
+
+        axis.scatter(distance, rmse, alpha=0.7, s=25)
+        line_x, line_y = _binned_median_curve(distance, rmse, n_bins=n_bins)
+        if line_x.size:
+            axis.plot(line_x, line_y, color="black", linewidth=1.5, marker="o", markersize=4)
+
+        title = (
+            f"{prior_name} prior\n"
+            f"median={_format_metric(summary['median_rmse_log_r10'])} | "
+            f"worst={_format_metric(summary['worst_rmse_log_r10'])}"
+        )
+        axis.set_title(title)
+        axis.set_xlabel(r"$||\theta_1 - \theta_0||_2$")
+        axis.set_ylabel(r"RMSE of $\log \hat{R}_{10}(x)$")
+        axis.grid(alpha=0.3)
+
+        spearman = summary.get("spearman_rmse_vs_distance", float("nan"))
+        axis.text(
+            0.03,
+            0.97,
+            rf"$\rho$={_format_metric(spearman)}",
+            transform=axis.transAxes,
+            ha="left",
+            va="top",
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8, edgecolor="0.8"),
+        )
+
+    for idx in range(n_priors, nrows * ncols):
+        fig.delaxes(axes[idx])
+
+    fig.tight_layout()
+    if filename is not None:
+        fig.savefig(filename)
+    return fig, axes
+
+
+def plot_log_ratio_exact_vs_predicted(model_quality_results, filename=None):
+    plt.rcParams.update({"font.size": 10})
+    n_priors = len(model_quality_results)
+    ncols = 3
+    nrows = (n_priors + ncols - 1) // ncols
+    fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 4 * nrows))
+    axes = ax.flatten() if isinstance(ax, np.ndarray) else [ax]
+
+    for idx, (prior_name, result) in enumerate(model_quality_results.items()):
+        axis = axes[idx]
+        pooled = result["pooled"]
+        summary = result["summary"]
+        exact = np.asarray(pooled["exact_log_r10"], dtype=float)
+        predicted = np.asarray(pooled["predicted_log_r10"], dtype=float)
+
+        hexbin = axis.hexbin(exact, predicted, gridsize=35, mincnt=1, cmap="viridis")
+        min_edge = float(np.min(np.concatenate([exact, predicted])))
+        max_edge = float(np.max(np.concatenate([exact, predicted])))
+        axis.plot([min_edge, max_edge], [min_edge, max_edge], linestyle="--", color="black", linewidth=1)
+        title = (
+            f"{prior_name} prior\n"
+            f"pooled RMSE={_format_metric(summary['pooled_rmse_log_r10'])} | "
+            f"pair median={_format_metric(summary['median_rmse_log_r10'])} | "
+            f"pair worst={_format_metric(summary['worst_rmse_log_r10'])}"
+        )
+        axis.set_title(title)
+        axis.set_xlabel(r"exact $\log R_{10}(x)$")
+        axis.set_ylabel(r"predicted $\log \hat{R}_{10}(x)$")
+        axis.grid(alpha=0.3)
+        fig.colorbar(hexbin, ax=axis, fraction=0.046, pad=0.04)
+
+    for idx in range(n_priors, nrows * ncols):
+        fig.delaxes(axes[idx])
+
+    fig.tight_layout()
+    if filename is not None:
+        fig.savefig(filename)
+    return fig, axes
+
+
+def plot_reweighting_swd_vs_distance(reweighting_results, filename=None, n_bins=8):
+    plt.rcParams.update({"font.size": 10})
+    n_priors = len(reweighting_results)
+    ncols = 3
+    nrows = (n_priors + ncols - 1) // ncols
+    fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 4 * nrows))
+    axes = ax.flatten() if isinstance(ax, np.ndarray) else [ax]
+
+    for idx, (prior_name, result) in enumerate(reweighting_results.items()):
+        axis = axes[idx]
+        pair_metrics = result["pair_metrics"]
+        summary = result["summary"]
+        distance = np.asarray(pair_metrics["distance"], dtype=float)
+        swd = np.asarray(pair_metrics["swd"], dtype=float)
+        ess_fraction = np.asarray(pair_metrics["ess_fraction"], dtype=float)
+
+        scatter = axis.scatter(distance, swd, c=ess_fraction, cmap="viridis", s=30, alpha=0.9)
+        line_x, line_y = _binned_median_curve(distance, swd, n_bins=n_bins)
+        if line_x.size:
+            axis.plot(line_x, line_y, color="black", linewidth=1.5, marker="o", markersize=4)
+
+        title = (
+            f"{prior_name} prior\n"
+            f"median={_format_metric(summary['median_swd'])} | "
+            f"worst={_format_metric(summary['worst_swd'])}"
+        )
+        axis.set_title(title)
+        axis.set_xlabel(r"$||\theta_1 - \theta_0||_2$")
+        axis.set_ylabel("weighted SW1")
+        axis.grid(alpha=0.3)
+        fig.colorbar(scatter, ax=axis, fraction=0.046, pad=0.04, label="ESS / N")
+
+        spearman = summary.get("spearman_swd_vs_distance", float("nan"))
+        axis.text(
+            0.03,
+            0.97,
+            rf"$\rho$={_format_metric(spearman)}",
+            transform=axis.transAxes,
+            ha="left",
+            va="top",
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.8, edgecolor="0.8"),
+        )
+
+    for idx in range(n_priors, nrows * ncols):
+        fig.delaxes(axes[idx])
+
+    fig.tight_layout()
+    if filename is not None:
+        fig.savefig(filename)
+    return fig, axes
+
+
+def plot_reweighting_summary(reweighting_results, filename=None):
+    plt.rcParams.update({"font.size": 10})
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    prior_names = list(reweighting_results.keys())
+    swd_values = [np.asarray(result["pair_metrics"]["swd"], dtype=float) for result in reweighting_results.values()]
+    ess_fraction_values = [
+        np.asarray(result["pair_metrics"]["ess_fraction"], dtype=float) for result in reweighting_results.values()
+    ]
+    positions = np.arange(1, len(prior_names) + 1)
+
+    axes[0].violinplot(swd_values, positions=positions, showmeans=True, showextrema=True, widths=0.8)
+    axes[0].set_xticks(positions)
+    axes[0].set_xticklabels(prior_names)
+    axes[0].set_title("weighted SW1 by prior")
+    axes[0].set_ylabel("weighted SW1")
+    axes[0].grid(alpha=0.3)
+
+    axes[1].violinplot(ess_fraction_values, positions=positions, showmeans=True, showextrema=True, widths=0.8)
+    axes[1].set_xticks(positions)
+    axes[1].set_xticklabels(prior_names)
+    axes[1].set_title("ESS fraction by prior")
+    axes[1].set_ylabel("ESS / N")
+    axes[1].grid(alpha=0.3)
+
+    fig.tight_layout()
+    if filename is not None:
+        fig.savefig(filename)
+    return fig, axes

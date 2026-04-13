@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-import itertools
+import concurrent.futures
+import multiprocessing as mp
+import queue as queue_module
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -21,6 +24,225 @@ def _get_model_lookup(models):
         if isinstance(models[0], dict):
             return models[0]
     raise TypeError("models must be a dict or a non-empty list/tuple of dicts.")
+
+
+def _normalize_hpd_entry(raw_entry, n_dims):
+    intervals = raw_entry
+    interval_combined = None
+
+    if isinstance(raw_entry, dict):
+        intervals = raw_entry.get("intervals", raw_entry.get("interval", None))
+        interval_combined = raw_entry.get("interval_combined", raw_entry.get("combined", None))
+    elif isinstance(raw_entry, (tuple, list)) and len(raw_entry) == 2:
+        intervals, interval_combined = raw_entry
+
+    intervals = np.asarray(intervals, dtype=float)
+    if intervals.ndim == 1 and intervals.size == 2 and n_dims == 1:
+        intervals = intervals.reshape(1, 2)
+    if intervals.shape != (n_dims, 2):
+        raise ValueError(f"Expected HPD intervals with shape ({n_dims}, 2), got {intervals.shape}.")
+
+    if interval_combined is None:
+        interval_combined = np.asarray(
+            [float(np.mean(intervals[:, 0])), float(np.mean(intervals[:, 1]))],
+            dtype=float,
+        )
+    else:
+        interval_combined = np.asarray(interval_combined, dtype=float)
+        if interval_combined.shape != (2,):
+            raise ValueError(
+                f"Expected combined HPD interval with shape (2,), got {interval_combined.shape}."
+            )
+
+    return intervals, interval_combined
+
+
+def _array_ref(path, shape, dtype):
+    path = Path(path).resolve()
+    return {
+        "path": str(path),
+        "shape": tuple(int(v) for v in shape),
+        "dtype": np.dtype(dtype).name,
+    }
+
+
+def _is_array_ref(value):
+    return isinstance(value, dict) and {"path", "shape", "dtype"} <= set(value)
+
+
+def _load_array(value, mmap_mode="r"):
+    if _is_array_ref(value):
+        return np.load(value["path"], mmap_mode=mmap_mode)
+    return np.asarray(value)
+
+
+def _create_array_storage(path, shape, dtype):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    arr = np.lib.format.open_memmap(str(path), mode="w+", dtype=dtype, shape=tuple(int(v) for v in shape))
+    return arr, _array_ref(path, shape, dtype)
+
+
+def _create_compact_map_store(n_points, n_dims, storage_dir=None, basename="posterior_map"):
+    shape = (int(n_points), int(n_dims))
+    if storage_dir is None:
+        map_array = np.empty(shape, dtype=np.float32)
+        map_ref = map_array
+    else:
+        map_array, map_ref = _create_array_storage(Path(storage_dir) / f"{basename}.npy", shape, np.float32)
+
+    return (
+        {
+            "format": "compact_map_store",
+            "n_points": int(n_points),
+            "n_dims": int(n_dims),
+            "dtype": "float32",
+            "map": map_ref,
+        },
+        map_array,
+    )
+
+
+def _create_compact_hpd_store(n_points, n_dims, storage_dir=None, basename="posterior_hpd"):
+    shape_intervals = (int(n_points), int(n_dims), 2)
+    shape_combined = (int(n_points), 2)
+    writable = {}
+    store = {
+        "format": "compact_hpd_store",
+        "n_points": int(n_points),
+        "n_dims": int(n_dims),
+        "dtype": "float32",
+    }
+
+    for level in ("68", "95"):
+        if storage_dir is None:
+            intervals_array = np.empty(shape_intervals, dtype=np.float32)
+            combined_array = np.empty(shape_combined, dtype=np.float32)
+            intervals_ref = intervals_array
+            combined_ref = combined_array
+        else:
+            intervals_array, intervals_ref = _create_array_storage(
+                Path(storage_dir) / f"{basename}_{level}_intervals.npy",
+                shape_intervals,
+                np.float32,
+            )
+            combined_array, combined_ref = _create_array_storage(
+                Path(storage_dir) / f"{basename}_{level}_combined.npy",
+                shape_combined,
+                np.float32,
+            )
+
+        writable[level] = {
+            "intervals": intervals_array,
+            "interval_combined": combined_array,
+        }
+        store[level] = {
+            "intervals": intervals_ref,
+            "interval_combined": combined_ref,
+        }
+
+    return store, writable
+
+
+def _flush_arrays(arrays):
+    for arr in arrays:
+        if hasattr(arr, "flush"):
+            arr.flush()
+
+
+def _is_compact_map_store(value):
+    return isinstance(value, dict) and value.get("format") == "compact_map_store" and "map" in value
+
+
+def _is_compact_hpd_store(value):
+    return isinstance(value, dict) and value.get("format") == "compact_hpd_store" and "68" in value and "95" in value
+
+
+def _extract_map_array(raw_posteriors, parameters_post=None, n_dims=None):
+    if _is_compact_map_store(raw_posteriors):
+        map_array = _load_array(raw_posteriors["map"], mmap_mode="r")
+        if map_array.ndim != 2:
+            raise ValueError(f"Expected compact posterior map array with 2 dims, got {map_array.shape}.")
+        if n_dims is not None and map_array.shape[1] != int(n_dims):
+            raise ValueError(
+                f"Expected compact posterior map array with {n_dims} dims, got {map_array.shape[1]}."
+            )
+        return map_array
+
+    posts = raw_posteriors
+    if n_dims is None:
+        if parameters_post is None:
+            raise ValueError("parameters_post is required to infer dimensions for legacy posterior entries.")
+        n_dims = len(parameters_post)
+
+    y_hat = np.zeros((len(posts), int(n_dims)), dtype=np.float32)
+    dim_lengths = [len(r) for r in parameters_post] if parameters_post is not None else None
+
+    for idx, posterior in enumerate(posts):
+        if isinstance(posterior, dict) and "map" in posterior:
+            y_hat[idx, :] = np.asarray(posterior["map"], dtype=np.float32)
+            continue
+
+        if dim_lengths is None or parameters_post is None:
+            raise ValueError("parameters_post is required for legacy posterior grids without MAP entries.")
+
+        arr = np.asarray(posterior)
+        if arr.ndim == 1:
+            imax = int(np.argmax(arr))
+            multi = np.unravel_index(imax, dim_lengths)
+        else:
+            multi = np.unravel_index(int(np.argmax(arr)), arr.shape)
+        for d in range(int(n_dims)):
+            y_hat[idx, d] = parameters_post[d][multi[d]]
+
+    return y_hat
+
+
+def _extract_hpd_level(raw_hpds, level, n_dims):
+    if _is_compact_hpd_store(raw_hpds):
+        if level not in raw_hpds:
+            raise KeyError(f"Missing HPD level '{level}' in compact HPD store.")
+        intervals = _load_array(raw_hpds[level]["intervals"], mmap_mode="r")
+        interval_combined = _load_array(raw_hpds[level]["interval_combined"], mmap_mode="r")
+        expected_shape = (int(raw_hpds["n_points"]), int(n_dims), 2)
+        if tuple(intervals.shape) != expected_shape:
+            raise ValueError(
+                f"Expected compact HPD intervals with shape {expected_shape}, got {intervals.shape}."
+            )
+        if tuple(interval_combined.shape) != (int(raw_hpds["n_points"]), 2):
+            raise ValueError(
+                f"Expected compact HPD combined intervals with shape {(int(raw_hpds['n_points']), 2)}, "
+                f"got {interval_combined.shape}."
+            )
+        return intervals, interval_combined
+
+    intervals = np.empty((len(raw_hpds), int(n_dims), 2), dtype=np.float32)
+    interval_combined = np.empty((len(raw_hpds), 2), dtype=np.float32)
+    for idx, entry in enumerate(raw_hpds):
+        intervals[idx], interval_combined[idx] = _normalize_hpd_entry(entry[level], int(n_dims))
+    return intervals, interval_combined
+
+
+def _select_num_cuda_workers(device, max_gpus, n_priors):
+    device = torch.device(device)
+    if device.type != "cuda":
+        return 1
+    if max_gpus < 1:
+        raise ValueError("max_gpus must be at least 1.")
+    return max(1, min(int(max_gpus), torch.cuda.device_count(), n_priors))
+
+
+def _state_dict_to_cpu(model):
+    return {key: value.detach().cpu() for key, value in model.state_dict().items()}
+
+
+def _build_model_from_state(config, model_state, device):
+    from .models import BinaryClassifier
+
+    model = BinaryClassifier(config)
+    model.load_state_dict(model_state)
+    model.to(device).eval()
+    return model
 
 
 def _brentq(func, a, b, xtol=1e-12, maxiter=200):
@@ -239,17 +461,22 @@ def create_inference_data(
                 )
             )
 
-    sampled_data = []
-    parameter_combinations = list(itertools.product(*parameters_to_infer))
-    for parameter_combination in parameter_combinations:
-        sampled_data.append(
-            draw_data(
-                np.asarray([parameter_combination for _ in range(n_repititions_per_parameter)]),
-                config,
-                generator,
-            )
-        )
-    sampled_data = np.asarray(sampled_data)
+    parameter_mesh = np.meshgrid(*parameters_to_infer, indexing="ij")
+    parameter_combinations = np.stack(
+        [mesh.reshape(-1) for mesh in parameter_mesh],
+        axis=1,
+    ).astype(np.float32)
+
+    repeated_parameters = np.repeat(
+        parameter_combinations[:, None, :],
+        int(n_repititions_per_parameter),
+        axis=1,
+    )
+    sampled_data = draw_data(
+        repeated_parameters.reshape(-1, n_dimensions),
+        config,
+        generator,
+    ).reshape(-1, int(n_repititions_per_parameter), n_dimensions)
 
     return parameters_to_infer, parameter_combinations, sampled_data
 
@@ -356,26 +583,287 @@ def _weighted_hpd_from_samples(theta_samples, weights, alpha):
     return intervals, interval_combined
 
 
-def _evaluate_log_ratio_on_samples(model, data_point, theta_samples, eval_batch_size=32768):
-    model_device = next(model.parameters()).device
-    n_theta = theta_samples.shape[0]
-    d = theta_samples.shape[1]
+def _get_combo_batch_size(n_repititions_per_parameter, eval_batch_size, n_qmc_samples):
+    target_theta_chunk = max(1, min(int(n_qmc_samples), 1024))
+    combo_batch_size = int(eval_batch_size) // max(1, int(n_repititions_per_parameter) * target_theta_chunk)
+    return max(1, combo_batch_size)
 
-    data_point = np.asarray(data_point, dtype=np.float32)
-    log_ratio = np.empty(n_theta, dtype=np.float64)
+
+def _get_eval_batch_plan(
+    n_posterior_combinations,
+    n_repititions_per_parameter,
+    n_qmc_samples,
+    eval_batch_size,
+):
+    combo_batch_size = _get_combo_batch_size(
+        n_repititions_per_parameter,
+        eval_batch_size,
+        n_qmc_samples,
+    )
+    max_pairs = max(1, int(eval_batch_size))
+    n_theta = int(n_qmc_samples)
+    obs_per_combo_batch = max(1, min(int(n_posterior_combinations), combo_batch_size)) * int(
+        n_repititions_per_parameter
+    )
+    target_obs_chunk = max(1, min(obs_per_combo_batch, max_pairs // max(1, min(n_theta, 1024))))
+    theta_chunk_size = max(1, min(n_theta, max_pairs // max(1, target_obs_chunk)))
+    return {
+        "combo_batch_size": combo_batch_size,
+        "obs_chunk_size": target_obs_chunk,
+        "theta_chunk_size": theta_chunk_size,
+        "forward_pairs": int(target_obs_chunk) * int(theta_chunk_size),
+    }
+
+
+def _evaluate_log_ratio_sums(model, sampled_batch, theta_samples_t, eval_batch_size=32768):
+    model_device = next(model.parameters()).device
+    sampled_batch_t = torch.as_tensor(sampled_batch, dtype=torch.float32, device=model_device)
+    n_combos, n_repititions, n_dimensions = sampled_batch_t.shape
+    n_theta = int(theta_samples_t.shape[0])
+
+    flat_obs = sampled_batch_t.reshape(n_combos * n_repititions, n_dimensions)
+    obs_to_combo = torch.arange(n_combos, device=model_device).repeat_interleave(n_repititions)
+    log_ratio_sum = torch.zeros((n_combos, n_theta), device=model_device, dtype=torch.float64)
+
+    max_pairs = max(1, int(eval_batch_size))
+    target_obs_chunk = max(1, min(int(flat_obs.shape[0]), max_pairs // max(1, min(n_theta, 1024))))
 
     with torch.no_grad():
-        for start in range(0, n_theta, eval_batch_size):
-            end = min(start + eval_batch_size, n_theta)
-            theta_b = theta_samples[start:end]
-            data_b = np.broadcast_to(data_point, (end - start, d)).astype(np.float32)
-            inp = np.concatenate([data_b, theta_b], axis=1)
-            inp_t = torch.from_numpy(inp).to(model_device)
-            out = model(inp_t).detach().cpu().numpy().reshape(-1)
-            out = np.clip(out, 1e-9, 1 - 1e-9)
-            log_ratio[start:end] = np.log(out) - np.log1p(-out)
+        for obs_start in range(0, int(flat_obs.shape[0]), target_obs_chunk):
+            obs_end = min(obs_start + target_obs_chunk, int(flat_obs.shape[0]))
+            obs_chunk = flat_obs[obs_start:obs_end]
+            combo_idx_chunk = obs_to_combo[obs_start:obs_end]
+            theta_chunk_size = max(1, min(n_theta, max_pairs // max(1, int(obs_chunk.shape[0]))))
 
-    return log_ratio
+            for theta_start in range(0, n_theta, theta_chunk_size):
+                theta_end = min(theta_start + theta_chunk_size, n_theta)
+                theta_chunk = theta_samples_t[theta_start:theta_end]
+                theta_count = int(theta_chunk.shape[0])
+
+                data_expand = obs_chunk[:, None, :].expand(int(obs_chunk.shape[0]), theta_count, n_dimensions)
+                theta_expand = theta_chunk[None, :, :].expand(int(obs_chunk.shape[0]), theta_count, n_dimensions)
+                inputs = torch.cat((data_expand, theta_expand), dim=2).reshape(
+                    int(obs_chunk.shape[0]) * theta_count,
+                    2 * n_dimensions,
+                )
+                outputs = model(inputs).reshape(int(obs_chunk.shape[0]), theta_count).clamp_(1e-9, 1 - 1e-9)
+                contrib = (torch.log(outputs) - torch.log1p(-outputs)).to(torch.float64)
+
+                combo_accum = torch.zeros((n_combos, theta_count), device=model_device, dtype=torch.float64)
+                combo_accum.index_add_(0, combo_idx_chunk, contrib)
+                log_ratio_sum[:, theta_start:theta_end] += combo_accum
+
+    return log_ratio_sum
+
+
+def _compute_prior_results_qmc(
+    *,
+    prior_name,
+    prior,
+    model,
+    sampled_data,
+    all_parameters_in_range,
+    device,
+    n_qmc_samples,
+    eval_batch_size,
+    qmc_seed,
+    progress=None,
+    progress_queue=None,
+    storage_dir=None,
+    flush_every_batches=32,
+):
+    sampled_data = np.asarray(sampled_data, dtype=np.float32)
+    n_posterior_combinations, n_repititions_per_parameter, n_dimensions = sampled_data.shape
+
+    theta_samples = _draw_qmc_theta_samples(
+        all_parameters_in_range,
+        n_samples=int(n_qmc_samples),
+        seed=qmc_seed,
+        scramble=True,
+        dtype=torch.float32,
+    )
+    theta_samples_t = torch.as_tensor(theta_samples, dtype=torch.float32, device=device)
+    prior_vals = np.asarray(prior(theta_samples), dtype=np.float64)
+    prior_vals = np.clip(prior_vals, 1e-300, None)
+    log_prior_t = torch.as_tensor(np.log(prior_vals), dtype=torch.float64, device=device)[None, :]
+
+    posteriors_grouped, posterior_map_array = _create_compact_map_store(
+        n_posterior_combinations,
+        n_dimensions,
+        storage_dir=storage_dir,
+        basename="posterior_map",
+    )
+    ratios_grouped, ratio_map_array = _create_compact_map_store(
+        n_posterior_combinations,
+        n_dimensions,
+        storage_dir=storage_dir,
+        basename="ratio_map",
+    )
+    errors_posterior, errors_posterior_arrays = _create_compact_hpd_store(
+        n_posterior_combinations,
+        n_dimensions,
+        storage_dir=storage_dir,
+        basename="posterior_hpd",
+    )
+    errors_ratio, errors_ratio_arrays = _create_compact_hpd_store(
+        n_posterior_combinations,
+        n_dimensions,
+        storage_dir=storage_dir,
+        basename="ratio_hpd",
+    )
+    flushables = [
+        posterior_map_array,
+        ratio_map_array,
+        errors_posterior_arrays["68"]["intervals"],
+        errors_posterior_arrays["68"]["interval_combined"],
+        errors_posterior_arrays["95"]["intervals"],
+        errors_posterior_arrays["95"]["interval_combined"],
+        errors_ratio_arrays["68"]["intervals"],
+        errors_ratio_arrays["68"]["interval_combined"],
+        errors_ratio_arrays["95"]["intervals"],
+        errors_ratio_arrays["95"]["interval_combined"],
+    ]
+    combo_batch_size = _get_combo_batch_size(n_repititions_per_parameter, eval_batch_size, n_qmc_samples)
+
+    model = model.to(device).eval()
+    for batch_idx, combo_start in enumerate(range(0, n_posterior_combinations, combo_batch_size)):
+        combo_end = min(combo_start + combo_batch_size, n_posterior_combinations)
+        sampled_batch = sampled_data[combo_start:combo_end]
+        log_ratio_sum_batch = _evaluate_log_ratio_sums(
+            model,
+            sampled_batch,
+            theta_samples_t,
+            eval_batch_size=eval_batch_size,
+        )
+        # Preserve the legacy posterior accumulation rule from the pre-batched
+        # implementation, which added the prior term once per repeated
+        # observation in the sampled block.
+        log_post_sum_batch = log_ratio_sum_batch + log_prior_t * sampled_batch.shape[1]
+
+        log_ratio_sum_np = log_ratio_sum_batch.detach().cpu().numpy()
+        log_post_sum_np = log_post_sum_batch.detach().cpu().numpy()
+
+        for row in range(combo_end - combo_start):
+            row_idx = combo_start + row
+            post_w = _normalize_log_weights(log_post_sum_np[row])
+            ratio_w = _normalize_log_weights(log_ratio_sum_np[row])
+
+            posterior_map_array[row_idx, :] = theta_samples[int(np.argmax(log_post_sum_np[row]))]
+            ratio_map_array[row_idx, :] = theta_samples[int(np.argmax(log_ratio_sum_np[row]))]
+
+            hpd_68_posterior = _weighted_hpd_from_samples(theta_samples, post_w, alpha=0.32)
+            hpd_95_posterior = _weighted_hpd_from_samples(theta_samples, post_w, alpha=0.05)
+            errors_posterior_arrays["68"]["intervals"][row_idx, :, :] = np.asarray(
+                hpd_68_posterior[0],
+                dtype=np.float32,
+            )
+            errors_posterior_arrays["68"]["interval_combined"][row_idx, :] = np.asarray(
+                hpd_68_posterior[1],
+                dtype=np.float32,
+            )
+            errors_posterior_arrays["95"]["intervals"][row_idx, :, :] = np.asarray(
+                hpd_95_posterior[0],
+                dtype=np.float32,
+            )
+            errors_posterior_arrays["95"]["interval_combined"][row_idx, :] = np.asarray(
+                hpd_95_posterior[1],
+                dtype=np.float32,
+            )
+
+            hpd_68_ratio = _weighted_hpd_from_samples(theta_samples, ratio_w, alpha=0.32)
+            hpd_95_ratio = _weighted_hpd_from_samples(theta_samples, ratio_w, alpha=0.05)
+            errors_ratio_arrays["68"]["intervals"][row_idx, :, :] = np.asarray(
+                hpd_68_ratio[0],
+                dtype=np.float32,
+            )
+            errors_ratio_arrays["68"]["interval_combined"][row_idx, :] = np.asarray(
+                hpd_68_ratio[1],
+                dtype=np.float32,
+            )
+            errors_ratio_arrays["95"]["intervals"][row_idx, :, :] = np.asarray(
+                hpd_95_ratio[0],
+                dtype=np.float32,
+            )
+            errors_ratio_arrays["95"]["interval_combined"][row_idx, :] = np.asarray(
+                hpd_95_ratio[1],
+                dtype=np.float32,
+            )
+
+        if progress is not None:
+            progress.update((combo_end - combo_start) * n_repititions_per_parameter)
+        if progress_queue is not None:
+            progress_queue.put(
+                {
+                    "prior_name": prior_name,
+                    "delta": (combo_end - combo_start) * n_repititions_per_parameter,
+                    "completed_combos": combo_end,
+                    "total_combos": n_posterior_combinations,
+                }
+            )
+        if storage_dir is not None and flush_every_batches > 0 and (batch_idx + 1) % int(flush_every_batches) == 0:
+            _flush_arrays(flushables)
+
+    model.to("cpu")
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    if storage_dir is not None:
+        _flush_arrays(flushables)
+
+    return prior_name, posteriors_grouped, ratios_grouped, errors_posterior, errors_ratio
+
+
+def _posterior_prior_worker(task):
+    from .priors import build_priors
+
+    config = task["config"]
+    device = torch.device(task["device"])
+    model = _build_model_from_state(config, task["model_state"], device)
+    priors, _, _, _ = build_priors(config, np.random.default_rng(0))
+    prior_lookup = {prior.__name__: prior for prior in priors}
+
+    return _compute_prior_results_qmc(
+        prior_name=task["prior_name"],
+        prior=prior_lookup[task["prior_name"]],
+        model=model,
+        sampled_data=task["sampled_data"],
+        all_parameters_in_range=task["all_parameters_in_range"],
+        device=device,
+        n_qmc_samples=task["n_qmc_samples"],
+        eval_batch_size=task["eval_batch_size"],
+        qmc_seed=task["qmc_seed"],
+        progress=None,
+        progress_queue=task.get("progress_queue"),
+        storage_dir=task.get("storage_dir"),
+    )
+
+
+def _drain_worker_progress_queue(progress_queue, progress, log_state, log_every_fraction=0.05):
+    if progress_queue is None:
+        return
+
+    while True:
+        try:
+            update = progress_queue.get_nowait()
+        except queue_module.Empty:
+            break
+
+        progress.update(int(update["delta"]))
+
+        prior_name = update["prior_name"]
+        completed_combos = int(update["completed_combos"])
+        total_combos = max(1, int(update["total_combos"]))
+        fraction_done = completed_combos / total_combos
+
+        next_fraction = log_state.setdefault(prior_name, log_every_fraction)
+        if fraction_done >= next_fraction or completed_combos == total_combos:
+            tqdm.write(
+                f"[posterior:{prior_name}] "
+                f"{completed_combos}/{total_combos} combinations "
+                f"({fraction_done:.1%})"
+            )
+            while fraction_done >= next_fraction:
+                next_fraction += log_every_fraction
+            log_state[prior_name] = next_fraction
 
 
 def get_posteriors_and_errors_qmc(
@@ -384,11 +872,14 @@ def get_posteriors_and_errors_qmc(
     models,
     priors,
     device,
+    config=None,
     n_qmc_samples=2**16,
     eval_batch_size=32768,
     max_model_evals_per_prior=int(2e15),
     qmc_seed=2026,
+    max_gpus=1,
     show_progress=True,
+    storage_dir=None,
 ):
     _, _, sampled_data = inference_data
     n_posterior_combinations, n_repititions_per_parameter, _ = sampled_data.shape
@@ -411,76 +902,121 @@ def get_posteriors_and_errors_qmc(
             f"[QMC] Reducing n_qmc_samples from {requested_n_qmc} to {safe_n_qmc} "
             f"to respect max_model_evals_per_prior={max_model_evals_per_prior}."
         )
-
-    theta_samples = _draw_qmc_theta_samples(
-        all_parameters_in_range,
-        n_samples=safe_n_qmc,
-        seed=qmc_seed,
-        scramble=True,
-        dtype=torch.float32,
+    if storage_dir is not None:
+        storage_dir = Path(storage_dir).resolve()
+        storage_dir.mkdir(parents=True, exist_ok=True)
+        print(f"[posterior] Using disk-backed posterior storage under {storage_dir}")
+    batch_plan = _get_eval_batch_plan(
+        n_posterior_combinations,
+        n_repititions_per_parameter,
+        safe_n_qmc,
+        eval_batch_size,
+    )
+    print(
+        "[posterior] "
+        f"eval_batch_size={int(eval_batch_size)}, "
+        f"combo_batch_size={batch_plan['combo_batch_size']}, "
+        f"obs_chunk_size={batch_plan['obs_chunk_size']}, "
+        f"theta_chunk_size={batch_plan['theta_chunk_size']}, "
+        f"forward_pairs={batch_plan['forward_pairs']}, "
+        f"qmc_samples={safe_n_qmc}"
     )
 
     model_lookup = _get_model_lookup(models)
-    total_iterations = n_posterior_combinations * n_repititions_per_parameter * len(priors)
-    progress = tqdm(
-        total=total_iterations,
-        desc="Calculating posteriors and errors (QMC samples)...",
-        disable=not show_progress,
-    )
+    n_cuda_workers = _select_num_cuda_workers(device, max_gpus, len(priors))
 
-    with progress as pbar:
-        for prior in priors:
-            prior_name = prior.__name__
-            model = model_lookup[prior_name].to(device).eval()
+    if n_cuda_workers <= 1:
+        total_iterations = n_posterior_combinations * n_repititions_per_parameter * len(priors)
+        progress = tqdm(
+            total=total_iterations,
+            desc="Calculating posteriors and errors (QMC samples)...",
+            disable=not show_progress,
+        )
 
-            prior_vals = np.asarray(prior(theta_samples), dtype=np.float64)
-            prior_vals = np.clip(prior_vals, 1e-300, None)
-            log_prior = np.log(prior_vals)
-
-            posteriors_grouped, ratios_grouped = [], []
-            errors_posterior, errors_ratio = [], []
-
-            for i_posterior_combination in range(n_posterior_combinations):
-                sampled_block = sampled_data[i_posterior_combination].astype(np.float32)
-                log_post_sum = np.zeros(safe_n_qmc, dtype=np.float64)
-                log_ratio_sum = np.zeros(safe_n_qmc, dtype=np.float64)
-
-                for data_point in sampled_block:
-                    lratio = _evaluate_log_ratio_on_samples(
-                        model,
-                        data_point,
-                        theta_samples,
+        with progress as pbar:
+            for prior in priors:
+                prior_name, posteriors_grouped, ratios_grouped, errors_posterior, errors_ratio = (
+                    _compute_prior_results_qmc(
+                        prior_name=prior.__name__,
+                        prior=prior,
+                        model=model_lookup[prior.__name__],
+                        sampled_data=sampled_data,
+                        all_parameters_in_range=all_parameters_in_range,
+                        device=torch.device(device),
+                        n_qmc_samples=safe_n_qmc,
                         eval_batch_size=eval_batch_size,
+                        qmc_seed=qmc_seed,
+                        progress=pbar,
+                        storage_dir=None if storage_dir is None else storage_dir / prior.__name__,
                     )
-                    log_ratio_sum += lratio
-                    log_post_sum += lratio + log_prior
-                    pbar.update(1)
+                )
 
-                post_w = _normalize_log_weights(log_post_sum)
-                ratio_w = _normalize_log_weights(log_ratio_sum)
+                all_hpds_posterior[prior_name] = errors_posterior
+                all_hpds_ratio[prior_name] = errors_ratio
+                all_posteriors[prior_name] = posteriors_grouped
+                all_ratios[prior_name] = ratios_grouped
+    else:
+        if config is None:
+            raise ValueError("config is required when max_gpus > 1 for posterior parallelism.")
 
-                map_post = theta_samples[int(np.argmax(log_post_sum))].astype(float)
-                map_ratio = theta_samples[int(np.argmax(log_ratio_sum))].astype(float)
+        device_names = [f"cuda:{idx}" for idx in range(n_cuda_workers)]
+        total_iterations = n_posterior_combinations * n_repititions_per_parameter * len(priors)
+        progress = tqdm(
+            total=total_iterations,
+            desc="Calculating posteriors and errors (QMC workers)...",
+            disable=not show_progress,
+        )
+        ctx = mp.get_context("spawn")
+        sampled_data_for_workers = np.asarray(sampled_data, dtype=np.float32)
+        manager = mp.Manager()
+        progress_queue = manager.Queue()
+        progress_log_state = {}
+        try:
+            tasks = []
+            for idx, prior in enumerate(priors):
+                tasks.append(
+                    {
+                        "prior_name": prior.__name__,
+                        "model_state": _state_dict_to_cpu(model_lookup[prior.__name__]),
+                        "config": config,
+                        "sampled_data": sampled_data_for_workers,
+                        "all_parameters_in_range": all_parameters_in_range,
+                        "n_qmc_samples": safe_n_qmc,
+                        "eval_batch_size": eval_batch_size,
+                        "qmc_seed": qmc_seed,
+                        "device": device_names[idx % n_cuda_workers],
+                        "progress_queue": progress_queue,
+                        "storage_dir": None if storage_dir is None else storage_dir / prior.__name__,
+                    }
+                )
 
-                posteriors_grouped.append({"map": map_post})
-                ratios_grouped.append({"map": map_ratio})
+            with progress, concurrent.futures.ProcessPoolExecutor(
+                max_workers=n_cuda_workers,
+                mp_context=ctx,
+            ) as executor:
+                future_map = {executor.submit(_posterior_prior_worker, task): task["prior_name"] for task in tasks}
+                pending = set(future_map)
 
-                hpd_68_posterior = _weighted_hpd_from_samples(theta_samples, post_w, alpha=0.32)
-                hpd_95_posterior = _weighted_hpd_from_samples(theta_samples, post_w, alpha=0.05)
-                errors_posterior.append({"68": hpd_68_posterior, "95": hpd_95_posterior})
+                while pending:
+                    done, pending = concurrent.futures.wait(
+                        pending,
+                        timeout=1.0,
+                        return_when=concurrent.futures.FIRST_COMPLETED,
+                    )
+                    _drain_worker_progress_queue(progress_queue, progress, progress_log_state)
 
-                hpd_68_ratio = _weighted_hpd_from_samples(theta_samples, ratio_w, alpha=0.32)
-                hpd_95_ratio = _weighted_hpd_from_samples(theta_samples, ratio_w, alpha=0.05)
-                errors_ratio.append({"68": hpd_68_ratio, "95": hpd_95_ratio})
+                    for future in done:
+                        prior_name, posteriors_grouped, ratios_grouped, errors_posterior, errors_ratio = (
+                            future.result()
+                        )
+                        all_hpds_posterior[prior_name] = errors_posterior
+                        all_hpds_ratio[prior_name] = errors_ratio
+                        all_posteriors[prior_name] = posteriors_grouped
+                        all_ratios[prior_name] = ratios_grouped
 
-            all_hpds_posterior[prior_name] = errors_posterior
-            all_hpds_ratio[prior_name] = errors_ratio
-            all_posteriors[prior_name] = posteriors_grouped
-            all_ratios[prior_name] = ratios_grouped
-
-            model.to("cpu")
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+                _drain_worker_progress_queue(progress_queue, progress, progress_log_state)
+        finally:
+            manager.shutdown()
 
     return all_posteriors, all_ratios, all_hpds_posterior, all_hpds_ratio
 
@@ -491,11 +1027,14 @@ def get_posteriors_and_errors(
     models,
     priors,
     device,
+    config=None,
     n_qmc_samples=2**16,
     eval_batch_size=32768,
     max_model_evals_per_prior=int(2e15),
     qmc_seed=2026,
+    max_gpus=1,
     show_progress=True,
+    storage_dir=None,
 ):
     return get_posteriors_and_errors_qmc(
         inference_data,
@@ -503,39 +1042,26 @@ def get_posteriors_and_errors(
         models=models,
         priors=priors,
         device=device,
+        config=config,
         n_qmc_samples=n_qmc_samples,
         eval_batch_size=eval_batch_size,
         max_model_evals_per_prior=max_model_evals_per_prior,
         qmc_seed=qmc_seed,
+        max_gpus=max_gpus,
         show_progress=show_progress,
+        storage_dir=storage_dir,
     )
 
 
 def get_first_column_scatter_data(inference_data, all_posteriors, parameters_post, hpds):
     _, parameter_combinations, _ = inference_data
-    true_params = np.asarray(parameter_combinations, dtype=float)
+    true_params = np.asarray(parameter_combinations, dtype=np.float32)
     n_dims = len(parameters_post)
 
     if true_params.ndim != 2 or true_params.shape[1] != n_dims:
         raise ValueError(
             f"Expected true parameters with shape (N, {n_dims}), got {true_params.shape}."
         )
-
-    def _parse_hpd_68(entry):
-        raw = entry["68"]
-        if isinstance(raw, dict):
-            intervals = raw.get("intervals", raw.get("interval", None))
-        elif isinstance(raw, (tuple, list)) and len(raw) == 2:
-            intervals = raw[0]
-        else:
-            intervals = raw
-
-        intervals = np.asarray(intervals, dtype=float)
-        if intervals.shape != (n_dims, 2):
-            raise ValueError(
-                f"Expected HPD intervals with shape ({n_dims}, 2), got {intervals.shape}."
-            )
-        return intervals
 
     def _aggregate_curve(x, y, decimals=12):
         x = np.round(np.asarray(x, dtype=float), decimals=decimals)
@@ -558,11 +1084,18 @@ def get_first_column_scatter_data(inference_data, all_posteriors, parameters_pos
         if prior_name not in all_posteriors:
             raise KeyError(f"Prior '{prior_name}' not found in all_posteriors.")
 
-        n_points = len(errors)
-        if n_points != len(all_posteriors[prior_name]):
+        y_hat = _extract_map_array(
+            all_posteriors[prior_name],
+            parameters_post=parameters_post,
+            n_dims=n_dims,
+        )
+        intervals_68, _ = _extract_hpd_level(errors, level="68", n_dims=n_dims)
+
+        n_points = int(intervals_68.shape[0])
+        if n_points != int(y_hat.shape[0]):
             raise ValueError(
                 f"For prior '{prior_name}', HPD count ({n_points}) does not match "
-                f"posterior count ({len(all_posteriors[prior_name])})."
+                f"posterior count ({y_hat.shape[0]})."
             )
         if n_points != true_params.shape[0]:
             raise ValueError(
@@ -570,14 +1103,8 @@ def get_first_column_scatter_data(inference_data, all_posteriors, parameters_pos
                 f"true points ({true_params.shape[0]})."
             )
 
-        width_dims = np.zeros((n_points, n_dims), dtype=float)
-        bias_dims = np.zeros((n_points, n_dims), dtype=float)
-
-        for i, entry in enumerate(errors):
-            intervals = _parse_hpd_68(entry)
-            lows, highs = intervals[:, 0], intervals[:, 1]
-            width_dims[i, :] = highs - lows
-            bias_dims[i, :] = 0.5 * (lows + highs) - true_params[i, :]
+        width_dims = intervals_68[:, :, 1] - intervals_68[:, :, 0]
+        bias_dims = y_hat - true_params
 
         width_curves = [_aggregate_curve(true_params[:, d], width_dims[:, d]) for d in range(n_dims)]
         bias_curves = [_aggregate_curve(true_params[:, d], bias_dims[:, d]) for d in range(n_dims)]
