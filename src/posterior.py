@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import math
 import multiprocessing as mp
 import queue as queue_module
 from pathlib import Path
@@ -420,7 +421,42 @@ def create_inference_parameters(
     generator,
     margin=1 / 4,
     data_is_random=False,
+    support_axis=None,
 ):
+    if support_axis is not None:
+        support_axis = np.asarray(support_axis, dtype=np.float32).ravel()
+        if support_axis.size == 0:
+            raise ValueError("support_axis must contain at least one lattice point.")
+
+        parameter_min, parameter_max = parameters_min_max
+        parameter_range = parameter_max - parameter_min
+        low = parameter_min + parameter_range * margin
+        high = parameter_max - parameter_range * margin
+        eligible = support_axis[
+            (support_axis >= low - 1e-6)
+            & (support_axis <= high + 1e-6)
+        ]
+        if eligible.size < int(n_parameters_to_infer):
+            raise ValueError(
+                "Not enough interior grid points to satisfy n_parameters_to_infer_per_dim "
+                f"for margin={margin}: need {n_parameters_to_infer}, found {eligible.size}."
+            )
+        if data_is_random:
+            choice_idx = generator.choice(eligible.size, size=int(n_parameters_to_infer), replace=False)
+            return np.sort(eligible[choice_idx].astype(np.float32))
+        if int(n_parameters_to_infer) == 1:
+            return np.asarray([eligible[eligible.size // 2]], dtype=np.float32)
+        idx = np.rint(
+            np.linspace(0, eligible.size - 1, int(n_parameters_to_infer), dtype=np.float64)
+        ).astype(int)
+        idx = np.clip(idx, 0, eligible.size - 1)
+        if np.unique(idx).size != int(n_parameters_to_infer):
+            raise ValueError(
+                "Unable to choose enough unique lattice-aligned inference points; "
+                "try reducing n_parameters_to_infer_per_dim or margin."
+            )
+        return eligible[idx].astype(np.float32)
+
     parameter_min, parameter_max = parameters_min_max
     parameter_range = parameter_max - parameter_min
     if data_is_random:
@@ -445,12 +481,18 @@ def create_inference_data(
     data_is_random=False,
     n_repititions_per_parameter=1,
     parameters_to_infer=None,
+    support_axes=None,
 ):
     n_dimensions = config["data"]["n_parameters"]
 
     if parameters_to_infer is None:
+        if support_axes is not None and len(support_axes) != n_dimensions:
+            raise ValueError(
+                f"Expected support_axes for {n_dimensions} dimensions, got {len(support_axes)}."
+            )
         parameters_to_infer = []
         for _ in range(n_dimensions):
+            support_axis = None if support_axes is None else support_axes[_]
             parameters_to_infer.append(
                 create_inference_parameters(
                     n_parameters_to_infer_per_dim,
@@ -458,6 +500,7 @@ def create_inference_data(
                     generator,
                     margin,
                     data_is_random,
+                    support_axis=support_axis,
                 )
             )
 
@@ -558,6 +601,73 @@ def _draw_qmc_theta_samples(all_parameters_in_range, n_samples, seed=0, scramble
     u = sobol.draw(n_samples).to(dtype=dtype)
     theta = lows[None, :] + u * widths[None, :]
     return theta.cpu().numpy().astype(np.float32)
+
+
+def _enumerate_support_axes(support_axes):
+    mesh = np.meshgrid(*support_axes, indexing="ij")
+    return np.stack([axis.reshape(-1) for axis in mesh], axis=1).astype(np.float32)
+
+
+def _draw_lattice_theta_samples(support_axes, n_samples, seed=0, scramble=True):
+    support_axes = tuple(np.asarray(axis, dtype=np.float32).ravel() for axis in support_axes)
+    if not support_axes:
+        raise ValueError("support_axes must contain at least one axis.")
+
+    full_support_size = math.prod(len(axis) for axis in support_axes)
+    target = min(int(n_samples), int(full_support_size))
+    if target <= 0:
+        raise ValueError("n_samples must be positive.")
+    if full_support_size <= target:
+        return _enumerate_support_axes(support_axes)
+
+    axis_sizes = np.asarray([len(axis) for axis in support_axes], dtype=np.int64)
+    sobol = torch.quasirandom.SobolEngine(
+        dimension=len(support_axes),
+        scramble=bool(scramble),
+        seed=int(seed),
+    )
+
+    seen = set()
+    ordered_indices = []
+    while len(ordered_indices) < target:
+        batch_size = max(1024, 2 * (target - len(ordered_indices)))
+        u = sobol.draw(batch_size).cpu().numpy()
+        idx_batch = np.floor(u * axis_sizes[None, :]).astype(np.int64)
+        idx_batch = np.clip(idx_batch, 0, axis_sizes[None, :] - 1)
+        for row in idx_batch:
+            key = tuple(int(v) for v in row)
+            if key in seen:
+                continue
+            seen.add(key)
+            ordered_indices.append(key)
+            if len(ordered_indices) >= target:
+                break
+        if len(seen) >= full_support_size:
+            break
+
+    theta = np.empty((len(ordered_indices), len(support_axes)), dtype=np.float32)
+    for dim, axis in enumerate(support_axes):
+        dim_idx = np.asarray([row[dim] for row in ordered_indices], dtype=np.int64)
+        theta[:, dim] = axis[dim_idx]
+    return theta
+
+
+def _draw_prior_theta_samples(prior, all_parameters_in_range, n_samples, seed=0, scramble=True, dtype=torch.float32):
+    support_axes = getattr(prior, "support_axes", None)
+    if getattr(prior, "support_kind", None) == "discrete_grid" and support_axes is not None:
+        return _draw_lattice_theta_samples(
+            support_axes,
+            n_samples=n_samples,
+            seed=seed,
+            scramble=scramble,
+        )
+    return _draw_qmc_theta_samples(
+        all_parameters_in_range,
+        n_samples=n_samples,
+        seed=seed,
+        scramble=scramble,
+        dtype=dtype,
+    )
 
 
 def _normalize_log_weights(log_w):
@@ -675,7 +785,8 @@ def _compute_prior_results_qmc(
     sampled_data = np.asarray(sampled_data, dtype=np.float32)
     n_posterior_combinations, n_repititions_per_parameter, n_dimensions = sampled_data.shape
 
-    theta_samples = _draw_qmc_theta_samples(
+    theta_samples = _draw_prior_theta_samples(
+        prior,
         all_parameters_in_range,
         n_samples=int(n_qmc_samples),
         seed=qmc_seed,
@@ -735,10 +846,10 @@ def _compute_prior_results_qmc(
             theta_samples_t,
             eval_batch_size=eval_batch_size,
         )
-        # Preserve the legacy posterior accumulation rule from the pre-batched
-        # implementation, which added the prior term once per repeated
-        # observation in the sampled block.
-        log_post_sum_batch = log_ratio_sum_batch + log_prior_t * sampled_batch.shape[1]
+        # For a shared parameter inferred from repeated observations, the prior
+        # enters the joint posterior once:
+        #   p(theta | x_1, ..., x_n) propto p(theta) * prod_i r(x_i, theta)
+        log_post_sum_batch = log_ratio_sum_batch + log_prior_t
 
         log_ratio_sum_np = log_ratio_sum_batch.detach().cpu().numpy()
         log_post_sum_np = log_post_sum_batch.detach().cpu().numpy()

@@ -335,7 +335,7 @@ def run(args: argparse.Namespace) -> None:
     from src.plotting import (
         _enforce_markers,
         plot_all_rocs,
-        plot_error_and_hpd_width,
+        plot_error_and_hld_width,
         plot_errorbars,
         plot_log_ratio_error_vs_distance,
         plot_log_ratio_exact_vs_predicted,
@@ -350,10 +350,18 @@ def run(args: argparse.Namespace) -> None:
     from src.posterior import (
         _extract_hpd_level,
         create_inference_data,
+        create_inference_parameters,
         get_first_column_scatter_data,
         get_posteriors_and_errors,
     )
-    from src.priors import build_priors, integrate_nd_vegas
+    from src.priors import (
+        build_priors,
+        describe_prior_normalization,
+        draw_grid_samples,
+        get_alignment_support_axes,
+        integrate_nd_vegas,
+        snap_to_support_axis,
+    )
     from src.training import test_model, train
     from src.utils import get_filepath
     from src.verification import (
@@ -400,6 +408,15 @@ def run(args: argparse.Namespace) -> None:
     print(json.dumps(config, indent=2, sort_keys=True))
 
     priors, prior_samplers, param_min, param_max = build_priors(config, generator)
+    alignment_support_axes = get_alignment_support_axes(priors)
+    if alignment_support_axes is not None:
+        print(
+            "Detected lattice-aligned prior support:",
+            {
+                "points_per_dim": [int(len(axis)) for axis in alignment_support_axes],
+                "grid_step": float(getattr(priors[-1], "grid_step", 0.0)),
+            },
+        )
 
     if args.n_parameters >= 2:
         filename_prior_contours = get_savepath(
@@ -439,15 +456,17 @@ def run(args: argparse.Namespace) -> None:
         print("Skipping 2D prior plots because n_parameters < 2.")
 
     for prior in priors:
-        integral = getattr(prior, "integral_over_box", None)
-        if integral is None:
+        normalization = describe_prior_normalization(prior)
+        normalization_value = normalization["value"]
+        if normalization["label"] == "Integral over box" and normalization_value is None:
             integral = integrate_nd_vegas(
                 prior,
                 [(param_min, param_max)] * config["data"]["n_parameters"],
                 nitn=args.vegas_nitn,
                 neval=args.vegas_neval,
             )[0]
-        print(f"Integral of {prior.__name__}: {integral:.5f}")
+            normalization_value = float(integral)
+        print(f"{normalization['label']} for {prior.__name__}: {normalization_value:.5f}")
 
     example_train_set, example_validation_set, example_test_set = get_data(
         prior_samplers[0],
@@ -542,13 +561,13 @@ def run(args: argparse.Namespace) -> None:
         output_root,
         args.save,
     )
-    filename_error_and_hpd_width = get_savepath(
+    filename_error_and_hld_width = get_savepath(
         "posterior_errors/error_and_hpd_width.pdf",
         config,
         output_root,
         args.save,
     )
-    filename_error_and_hpd_width_ratios = get_savepath(
+    filename_error_and_hld_width_ratios = get_savepath(
         "posterior_errors/error_and_hpd_width_ratios.pdf",
         config,
         output_root,
@@ -586,6 +605,7 @@ def run(args: argparse.Namespace) -> None:
         n_parameters_to_infer_per_dim=args.n_parameters_to_infer_per_dim,
         margin=args.inference_margin,
         n_repititions_per_parameter=args.n_repetitions_per_parameter,
+        support_axes=alignment_support_axes,
     )
     posterior_storage_dir = None
     if filename_posteriors_data is not None:
@@ -643,26 +663,26 @@ def run(args: argparse.Namespace) -> None:
     )
     close_figure(fig, plt)
 
-    fig, _ = plot_error_and_hpd_width(
+    fig, _ = plot_error_and_hld_width(
         all_HPDs_posterior,
         inference_data,
         all_posteriors,
         all_parameters_in_range,
-        filename=filename_error_and_hpd_width,
+        filename=filename_error_and_hld_width,
     )
-    if filename_error_and_hpd_width is not None:
-        _enforce_markers(fig, filename=filename_error_and_hpd_width)
+    if filename_error_and_hld_width is not None:
+        _enforce_markers(fig, filename=filename_error_and_hld_width)
     close_figure(fig, plt)
 
-    fig, _ = plot_error_and_hpd_width(
+    fig, _ = plot_error_and_hld_width(
         all_HPDs_ratio,
         inference_data,
         all_ratios,
         all_parameters_in_range,
-        filename=filename_error_and_hpd_width_ratios,
+        filename=filename_error_and_hld_width_ratios,
     )
-    if filename_error_and_hpd_width_ratios is not None:
-        _enforce_markers(fig, filename=filename_error_and_hpd_width_ratios)
+    if filename_error_and_hld_width_ratios is not None:
+        _enforce_markers(fig, filename=filename_error_and_hld_width_ratios)
     close_figure(fig, plt)
 
     averaged_bias_error = get_first_column_scatter_data(
@@ -677,15 +697,31 @@ def run(args: argparse.Namespace) -> None:
         print(f"Saved averaged bias data to {filename_scatter_data}")
 
     n_ratio_samples = args.n_ratio_samples
-    verification_parameters = generator.uniform(
-        low=param_min,
-        high=param_max,
-        size=(n_ratio_samples, config["data"]["n_parameters"]),
+    verification_data_by_prior = {}
+    for prior_sampler in prior_samplers:
+        verification_parameters = prior_sampler((n_ratio_samples,))
+        verification_data_by_prior[prior_sampler.__name__] = draw_data(
+            verification_parameters,
+            config,
+            generator,
+        )
+    print(
+        "Check I uses prior-specific marginal samples for E[r(x|theta)] verification:",
+        {
+            prior_name: tuple(values.shape)
+            for prior_name, values in verification_data_by_prior.items()
+        },
     )
-    verification_data = draw_data(verification_parameters, config, generator)
-    test_parameters = np.linspace(param_min, param_max, args.n_ratio_test_parameters)
+    test_parameters = create_inference_parameters(
+        args.n_ratio_test_parameters,
+        parameters_min_max,
+        generator,
+        margin=0.0,
+        data_is_random=False,
+        support_axis=None if alignment_support_axes is None else alignment_support_axes[0],
+    )
     all_ratio_checks = calculate_all_ratios(
-        verification_data,
+        verification_data_by_prior,
         test_parameters,
         models=models,
         priors=priors,
@@ -703,7 +739,19 @@ def run(args: argparse.Namespace) -> None:
     fig, _ = plot_ratio_violins(all_ratio_checks, test_parameters, filename=filename_ratio_violins)
     close_figure(fig, plt)
 
-    test_parameter_sets = [(args.reweighting_theta_0, args.reweighting_theta_1)]
+    reweight_theta_0 = float(args.reweighting_theta_0)
+    reweight_theta_1 = float(args.reweighting_theta_1)
+    if alignment_support_axes is not None:
+        snapped_theta_0 = snap_to_support_axis(reweight_theta_0, alignment_support_axes[0])
+        snapped_theta_1 = snap_to_support_axis(reweight_theta_1, alignment_support_axes[0])
+        if not np.isclose(snapped_theta_0, reweight_theta_0):
+            print(f"Snapped reweighting_theta_0 from {reweight_theta_0} to {snapped_theta_0}.")
+        if not np.isclose(snapped_theta_1, reweight_theta_1):
+            print(f"Snapped reweighting_theta_1 from {reweight_theta_1} to {snapped_theta_1}.")
+        reweight_theta_0 = float(snapped_theta_0)
+        reweight_theta_1 = float(snapped_theta_1)
+
+    test_parameter_sets = [(reweight_theta_0, reweight_theta_1)]
     for test_parameter_set in test_parameter_sets:
         data_x, reweighted_distributions, reweighting_distributions, _ = reweight_distributions(
             test_parameter_set,
@@ -746,6 +794,7 @@ def run(args: argparse.Namespace) -> None:
         reweight_source_samples=args.verification_reweight_source_samples,
         reweight_target_samples=args.verification_reweight_target_samples,
         swd_projections=args.verification_swd_projections,
+        support_axes=alignment_support_axes,
     )
 
     print("Check III: exact pairwise log-ratio error")
@@ -937,7 +986,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--reweighting-theta-0", type=float, default=3.0)
     parser.add_argument("--reweighting-theta-1", type=float, default=7.0)
     parser.add_argument("--reweighting-projection-dim", type=int, default=0)
-    parser.add_argument("--verification-pair-count", type=int, default=32)
+    parser.add_argument("--verification-pair-count", type=int, default=256)
     parser.add_argument("--verification-model-samples-per-endpoint", type=int, default=512)
     parser.add_argument("--verification-reweight-source-samples", type=int, default=2048)
     parser.add_argument("--verification-reweight-target-samples", type=int, default=2048)

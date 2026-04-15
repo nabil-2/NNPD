@@ -19,12 +19,13 @@ from src.plotting import (
     plot_errorbars,
     plot_log_ratio_error_vs_distance,
     plot_log_ratio_exact_vs_predicted,
+    plot_prior_contours,
     plot_reweighted_distributions,
     plot_reweighting_summary,
     plot_reweighting_swd_vs_distance,
 )
 from src.posterior import (
-    _draw_qmc_theta_samples,
+    _draw_prior_theta_samples,
     _extract_hpd_level,
     _extract_map_array,
     _normalize_log_weights,
@@ -33,9 +34,11 @@ from src.posterior import (
     get_first_column_scatter_data,
     get_posteriors_and_errors,
 )
-from src.priors import build_priors
+from src.priors import build_priors, get_alignment_support_axes
 from src.verification import (
     build_quantitative_verification_bundle,
+    calculate_all_ratios,
+    compute_ratio,
     compute_effective_sample_size,
     evaluate_nd_reweighting_quality,
     evaluate_pairwise_log_ratio_quality,
@@ -100,13 +103,15 @@ def _reference_posteriors(
             int(max_model_evals_per_prior) // max(n_posterior_combinations * n_repititions_per_parameter, 1),
         ),
     )
-    theta_samples = _draw_qmc_theta_samples(
+    theta_samples = _draw_prior_theta_samples(
+        prior,
         all_parameters_in_range,
         n_samples=safe_n_qmc,
         seed=qmc_seed,
         scramble=True,
         dtype=torch.float32,
     )
+    n_theta = int(theta_samples.shape[0])
     prior_vals = np.asarray(prior(theta_samples), dtype=np.float64)
     prior_vals = np.clip(prior_vals, 1e-300, None)
     log_prior = np.log(prior_vals)
@@ -117,13 +122,12 @@ def _reference_posteriors(
     model = model.to(device).eval()
     for combo_idx in range(n_posterior_combinations):
         sampled_block = sampled_data[combo_idx].astype(np.float32)
-        log_post_sum = np.zeros(safe_n_qmc, dtype=np.float64)
-        log_ratio_sum = np.zeros(safe_n_qmc, dtype=np.float64)
+        log_ratio_sum = np.zeros(n_theta, dtype=np.float64)
 
         for data_point in sampled_block:
-            log_ratio = np.empty(safe_n_qmc, dtype=np.float64)
-            for start in range(0, safe_n_qmc, eval_batch_size):
-                end = min(start + eval_batch_size, safe_n_qmc)
+            log_ratio = np.empty(n_theta, dtype=np.float64)
+            for start in range(0, n_theta, eval_batch_size):
+                end = min(start + eval_batch_size, n_theta)
                 theta_chunk = theta_samples[start:end]
                 data_chunk = np.broadcast_to(data_point, (end - start, data_point.shape[0])).astype(np.float32)
                 inputs = np.concatenate([data_chunk, theta_chunk], axis=1)
@@ -133,7 +137,8 @@ def _reference_posteriors(
                 log_ratio[start:end] = np.log(outputs) - np.log1p(-outputs)
 
             log_ratio_sum += log_ratio
-            log_post_sum += log_ratio + log_prior
+
+        log_post_sum = log_ratio_sum + log_prior
 
         post_w = _normalize_log_weights(log_post_sum)
         ratio_w = _normalize_log_weights(log_ratio_sum)
@@ -169,12 +174,90 @@ class SamplingTests(unittest.TestCase):
         self.assertLess(np.max(np.abs(samples.mean(axis=0))), 0.08)
         self.assertTrue(np.allclose(samples.var(axis=0), 4.0, atol=0.2))
 
+    def test_build_priors_includes_grid_sampler_and_metadata(self):
+        config = _small_config(2)
+        generator = np.random.default_rng(42)
+        priors, prior_samplers, _, _ = build_priors(config, generator)
+
+        prior_names = [prior.__name__ for prior in priors]
+        self.assertEqual(prior_names, ["uniform", "normal", "exponential", "grid"])
+        self.assertEqual([sampler.__name__ for sampler in prior_samplers], prior_names)
+
+        grid_prior = priors[-1]
+        grid_sampler = prior_samplers[-1]
+        self.assertEqual(grid_prior.support_kind, "discrete_grid")
+        self.assertEqual(grid_prior.normalization_mode, "discrete_mass")
+        self.assertAlmostEqual(grid_prior.discrete_mass, 1.0)
+        self.assertIsNotNone(grid_prior.support_axes)
+
+        samples = grid_sampler((256,))
+        self.assertEqual(samples.shape, (256, 2))
+        for dim, axis in enumerate(grid_prior.support_axes):
+            self.assertTrue(np.all(np.isin(samples[:, dim], axis)))
+
+        prior_values = np.asarray(grid_prior(samples), dtype=float)
+        self.assertTrue(np.all(prior_values > 0.0))
+        self.assertTrue(
+            np.allclose(
+                prior_values,
+                np.full(samples.shape[0], 1.0 / grid_prior.support_size, dtype=float),
+            )
+        )
+
+        off_grid = samples.copy()
+        off_grid[0, 0] += 0.07
+        self.assertEqual(float(grid_prior(off_grid[0])), 0.0)
+
+    def test_truncated_continuous_priors_stay_in_box_and_normalize_in_1d(self):
+        config = _small_config(1)
+        generator = np.random.default_rng(123)
+        priors, prior_samplers, param_min, param_max = build_priors(config, generator)
+        prior_lookup = {prior.__name__: prior for prior in priors}
+        sampler_lookup = {sampler.__name__: sampler for sampler in prior_samplers}
+
+        xs = np.linspace(param_min, param_max, 4001, dtype=np.float64)
+        x_eval = xs[:, None]
+
+        for prior_name in ("normal", "exponential"):
+            samples = sampler_lookup[prior_name]((50_000,))
+            self.assertEqual(samples.shape, (50_000, 1))
+            self.assertTrue(np.all(samples >= param_min))
+            self.assertTrue(np.all(samples <= param_max))
+
+            prior = prior_lookup[prior_name]
+            integral = np.trapezoid(np.asarray(prior(x_eval), dtype=np.float64), xs)
+            self.assertAlmostEqual(float(integral), 1.0, places=3)
+            self.assertEqual(float(prior(np.array([param_min - 1.0], dtype=np.float64))), 0.0)
+            self.assertEqual(float(prior(np.array([param_max + 1.0], dtype=np.float64))), 0.0)
+
 
 class PosteriorTests(unittest.TestCase):
+    def test_grid_prior_theta_support_stays_on_lattice(self):
+        config = _small_config(3)
+        generator = np.random.default_rng(9)
+        priors, _, _, _ = build_priors(config, generator)
+        grid_prior = next(prior for prior in priors if prior.__name__ == "grid")
+        all_parameters_in_range = [np.linspace(0, 10, 11) for _ in range(config["data"]["n_parameters"])]
+
+        theta_samples = _draw_prior_theta_samples(
+            grid_prior,
+            all_parameters_in_range,
+            n_samples=2048,
+            seed=17,
+            scramble=True,
+            dtype=torch.float32,
+        )
+        self.assertGreater(theta_samples.shape[0], 0)
+        for dim, axis in enumerate(grid_prior.support_axes):
+            self.assertTrue(np.all(np.isin(theta_samples[:, dim], axis)))
+        prior_vals = np.asarray(grid_prior(theta_samples), dtype=float)
+        self.assertTrue(np.all(prior_vals > 0.0))
+
     def test_batched_posterior_matches_reference_on_tiny_case(self):
         config = _small_config(2)
         generator = np.random.default_rng(7)
         priors, prior_samplers, _, _ = build_priors(config, generator)
+        support_axes = get_alignment_support_axes(priors)
 
         torch.manual_seed(5)
         models = {}
@@ -189,6 +272,7 @@ class PosteriorTests(unittest.TestCase):
             generator,
             n_parameters_to_infer_per_dim=2,
             n_repititions_per_parameter=2,
+            support_axes=support_axes,
         )
         all_parameters_in_range = [np.linspace(0, 10, 11) for _ in range(config["data"]["n_parameters"])]
 
@@ -255,6 +339,9 @@ class PosteriorTests(unittest.TestCase):
             )
             np.testing.assert_allclose(actual_ratio_maps, expected_ratio_maps, atol=1e-6)
 
+            if prior_name == "grid":
+                np.testing.assert_allclose(actual_post_maps, actual_ratio_maps, atol=1e-6)
+
             for level in ("68", "95"):
                 actual_intervals, actual_combined = _extract_hpd_level(
                     actual_hpds_posterior[prior_name],
@@ -268,6 +355,17 @@ class PosteriorTests(unittest.TestCase):
                 )
                 np.testing.assert_allclose(actual_intervals, expected_intervals, atol=1e-6)
                 np.testing.assert_allclose(actual_combined, expected_combined, atol=1e-6)
+
+                if prior_name == "grid":
+                    np.testing.assert_allclose(
+                        actual_intervals,
+                        _extract_hpd_level(
+                            actual_hpds_ratio[prior_name],
+                            level,
+                            config["data"]["n_parameters"],
+                        )[0],
+                        atol=1e-6,
+                    )
 
                 actual_intervals, actual_combined = _extract_hpd_level(
                     actual_hpds_ratio[prior_name],
@@ -284,6 +382,21 @@ class PosteriorTests(unittest.TestCase):
 
 
 class PlottingTests(unittest.TestCase):
+    def test_plot_prior_contours_renders_discrete_grid_prior(self):
+        config = _small_config(2)
+        generator = np.random.default_rng(11)
+        priors, _, _, _ = build_priors(config, generator)
+
+        fig, axes = plot_prior_contours(
+            priors,
+            parameter_range=config["data"]["parameter_range"],
+            n_parameters=config["data"]["n_parameters"],
+            n_points=25,
+        )
+        titles = [axis.get_title() for axis in axes]
+        self.assertIn("grid", titles)
+        plt.close(fig)
+
     def test_nd_plotting_accepts_tuple_and_dict_hpd_entries(self):
         n_dims = 3
         true_params = np.asarray(
@@ -464,6 +577,11 @@ class PlottingTests(unittest.TestCase):
         )
         self.assertEqual(axes[0].get_title(), "uniform prior\nN=4 | ESS=4")
         self.assertEqual(axes[1].get_title(), "normal prior\nN=4 | ESS=1")
+        self.assertEqual(axes[0].get_ylabel(), "Density")
+        first_hist_area = sum(patch.get_width() * patch.get_height() for patch in axes[0].patches[:4])
+        second_hist_area = sum(patch.get_width() * patch.get_height() for patch in axes[0].patches[4:8])
+        self.assertAlmostEqual(first_hist_area, 1.0, places=7)
+        self.assertAlmostEqual(second_hist_area, 1.0, places=7)
         plt.close(fig)
 
     def test_quantitative_verification_plots_render(self):
@@ -534,6 +652,7 @@ class PlottingTests(unittest.TestCase):
 
         fig, axes = plot_log_ratio_error_vs_distance(model_quality_results, n_bins=2)
         self.assertIn("uniform prior", axes[0].get_title())
+        self.assertEqual(axes[0].get_legend().get_texts()[0].get_text(), "parameter pair")
         plt.close(fig)
 
         fig, axes = plot_log_ratio_exact_vs_predicted(model_quality_results)
@@ -541,15 +660,149 @@ class PlottingTests(unittest.TestCase):
         plt.close(fig)
 
         fig, axes = plot_reweighting_swd_vs_distance(reweighting_results, n_bins=2)
-        self.assertIn("weighted SW1", axes[0].get_ylabel())
+        self.assertEqual(axes[0].get_ylabel(), r"$\mathrm{SW}_1$")
         plt.close(fig)
 
         fig, axes = plot_reweighting_summary(reweighting_results)
-        self.assertEqual(axes[1].get_ylabel(), "ESS / N")
+        self.assertEqual(axes[1].get_ylabel(), r"$\mathrm{ESS}/N$")
+        plt.close(fig)
+
+    def test_verification_prior_grids_use_two_columns_for_four_priors(self):
+        model_quality_results = {}
+        for prior_name, offset in zip(("uniform", "normal", "exponential", "grid"), (0.0, 0.1, 0.2, 0.3)):
+            model_quality_results[prior_name] = {
+                "pair_metrics": {
+                    "distance": np.array([1.0, 2.0, 3.0], dtype=float),
+                    "rmse_log_r10": np.array([0.2, 0.4, 0.6], dtype=float) + offset,
+                },
+                "pooled": {
+                    "exact_log_r10": np.array([-1.0, 0.0, 1.0], dtype=float),
+                    "predicted_log_r10": np.array([-0.9, 0.1, 1.1], dtype=float) + offset,
+                },
+                "summary": {
+                    "median_rmse_log_r10": 0.4 + offset,
+                    "worst_rmse_log_r10": 0.6 + offset,
+                    "pooled_rmse_log_r10": 0.15 + offset,
+                    "spearman_rmse_vs_distance": 1.0,
+                },
+            }
+
+        fig, axes = plot_log_ratio_error_vs_distance(model_quality_results, n_bins=2)
+        grid_spec = axes[0].get_subplotspec().get_gridspec()
+        self.assertEqual(grid_spec.ncols, 2)
+        self.assertEqual(grid_spec.nrows, 2)
+        plt.close(fig)
+
+        def _prior(name):
+            def prior(_):
+                return np.ones(1)
+
+            prior.__name__ = name
+            return prior
+
+        priors = [_prior(name) for name in ("uniform", "normal", "exponential", "grid")]
+        data_x = [
+            np.array([0.0, 0.5, 1.0, 1.5], dtype=float),
+            np.array([1.0, 1.5, 2.0, 2.5], dtype=float),
+        ]
+        reweighted_distributions = {
+            name: (np.array([0.25, 0.75, 1.25]), np.array([1.0, 2.0, 1.0]) + idx)
+            for idx, name in enumerate(("uniform", "normal", "exponential", "grid"))
+        }
+
+        fig, axes = plot_reweighted_distributions(
+            priors,
+            data_x,
+            reweighted_distributions,
+            test_parameters=(3, 7),
+            n_bins=4,
+        )
+        grid_spec = axes[0].get_subplotspec().get_gridspec()
+        self.assertEqual(grid_spec.ncols, 2)
+        self.assertEqual(grid_spec.nrows, 2)
         plt.close(fig)
 
 
 class VerificationMetricTests(unittest.TestCase):
+    def test_calculate_all_ratios_supports_shared_and_prior_specific_inputs(self):
+        config = _small_config(1)
+        generator = np.random.default_rng(19)
+        priors, prior_samplers, _, _ = build_priors(config, generator)
+
+        torch.manual_seed(13)
+        models = {}
+        for prior_sampler in prior_samplers:
+            model = BinaryClassifier(config)
+            model.eval()
+            models[prior_sampler.__name__] = model
+
+        test_parameters = [2.0, 6.0]
+        shared_inputs = np.array([[1.0], [3.0], [5.0]], dtype=np.float32)
+        shared_ratios = calculate_all_ratios(
+            shared_inputs,
+            test_parameters,
+            models=models,
+            priors=priors,
+            device=torch.device("cpu"),
+            config=config,
+            max_gpus=1,
+        )
+
+        for prior in priors:
+            expected = []
+            for parameter in test_parameters:
+                ratio_values, _ = compute_ratio(shared_inputs, parameter, models[prior.__name__], torch.device("cpu"))
+                expected.append(ratio_values.tolist())
+            self.assertEqual(shared_ratios[prior.__name__], expected)
+
+        prior_specific_inputs = {
+            prior.__name__: np.full((3, 1), float(idx + 1), dtype=np.float32)
+            for idx, prior in enumerate(priors)
+        }
+        routed_ratios = calculate_all_ratios(
+            prior_specific_inputs,
+            test_parameters,
+            models=models,
+            priors=priors,
+            device=torch.device("cpu"),
+            config=config,
+            max_gpus=1,
+        )
+
+        for idx, prior in enumerate(priors):
+            expected = []
+            expected_inputs = prior_specific_inputs[prior.__name__]
+            for parameter in test_parameters:
+                ratio_values, _ = compute_ratio(
+                    expected_inputs,
+                    parameter,
+                    models[prior.__name__],
+                    torch.device("cpu"),
+                )
+                expected.append(ratio_values.tolist())
+            self.assertEqual(routed_ratios[prior.__name__], expected)
+
+    def test_quantitative_verification_bundle_can_sample_on_grid_support(self):
+        config = _small_config(2)
+        generator = np.random.default_rng(31)
+        priors, _, _, _ = build_priors(config, generator)
+        support_axes = get_alignment_support_axes(priors)
+
+        bundle = build_quantitative_verification_bundle(
+            config,
+            generator,
+            pair_count=8,
+            model_samples_per_endpoint=4,
+            reweight_source_samples=8,
+            reweight_target_samples=8,
+            swd_projections=4,
+            support_axes=support_axes,
+        )
+
+        for dim, axis in enumerate(support_axes):
+            self.assertTrue(np.all(np.isin(bundle["theta_0"][:, dim], axis)))
+            self.assertTrue(np.all(np.isin(bundle["theta_1"][:, dim], axis)))
+
     def test_exact_log_r10_matches_closed_form_in_1d_and_nd(self):
         sigma = 2.0
 
@@ -620,6 +873,7 @@ class VerificationMetricTests(unittest.TestCase):
         config = _small_config(2)
         generator = np.random.default_rng(23)
         priors, prior_samplers, _, _ = build_priors(config, generator)
+        support_axes = get_alignment_support_axes(priors)
 
         torch.manual_seed(17)
         models = {}
@@ -636,6 +890,7 @@ class VerificationMetricTests(unittest.TestCase):
             reweight_source_samples=16,
             reweight_target_samples=16,
             swd_projections=4,
+            support_axes=support_axes,
         )
 
         model_quality_results = evaluate_pairwise_log_ratio_quality(
@@ -896,6 +1151,8 @@ class ScriptSmokeTests(unittest.TestCase):
             self.assertEqual(bundle["run_metadata"]["n_parameters"], 2)
             self.assertEqual(bundle["run_metadata"]["max_gpus"], 1)
             self.assertEqual(bundle["posterior_workload"]["n_repetitions_per_setting"], 1)
+            self.assertEqual(bundle["posterior_workload"]["n_priors"], 4)
+            self.assertIn("grid", bundle["posterior_workload"]["prior_names"])
             self.assertIn("effective_config", bundle["run_metadata"])
             self.assertIn("posterior", bundle["hpd_summary"])
             self.assertIn("ratio", bundle["hpd_summary"])
@@ -932,6 +1189,10 @@ class ScriptSmokeTests(unittest.TestCase):
             self.assertTrue((posterior_errors_dir / "first_column_scatter_data.pkl").exists())
             self.assertTrue((posterior_errors_dir / "run_info.json").exists())
             self.assertTrue((posterior_errors_dir / "analysis_bundle.json").exists())
+
+            config_dir = posterior_errors_dir.parent
+            self.assertTrue((config_dir / "models/models_0/model_grid_prior.pth").exists())
+            self.assertTrue((config_dir / "training/training_0/training_grid_prior.pdf").exists())
 
     @unittest.skipUnless(torch.cuda.is_available() and torch.cuda.device_count() >= 2, "requires at least 2 GPUs")
     def test_cuda_two_gpu_no_save_smoke(self):

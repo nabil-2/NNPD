@@ -30,6 +30,14 @@ def _as_2d_data(data):
     raise ValueError("Expected scalar, 1D, or 2D data input.")
 
 
+def _resolve_prior_data_inputs(data_inputs, prior_name):
+    if isinstance(data_inputs, dict):
+        if prior_name not in data_inputs:
+            raise KeyError(f"Missing verification data for prior '{prior_name}'.")
+        return _as_2d_data(data_inputs[prior_name])
+    return _as_2d_data(data_inputs)
+
+
 def _parameter_matrix(parameter, n_samples, n_dimensions):
     parameter = np.asarray(parameter, dtype=np.float32)
     if parameter.ndim == 0:
@@ -62,13 +70,13 @@ def compute_ratio(data, parameter, model, device):
 
 
 def calculate_individual_ratios(data_inputs, parameter, models, priors, device):
-    data_inputs = _as_2d_data(data_inputs)
     model_lookup = _get_model_lookup(models)
 
     ratios = {}
     for prior in priors:
+        prior_data_inputs = _resolve_prior_data_inputs(data_inputs, prior.__name__)
         ratio_values, _ = compute_ratio(
-            data_inputs,
+            prior_data_inputs,
             parameter,
             model_lookup[prior.__name__],
             device,
@@ -107,7 +115,7 @@ def calculate_all_ratios(data_inputs, test_parameters, models, priors, device, c
             prior_name, ratio_series = _calculate_prior_ratio_series(
                 prior.__name__,
                 model_lookup[prior.__name__],
-                data_inputs,
+                _resolve_prior_data_inputs(data_inputs, prior.__name__),
                 test_parameters,
                 device,
             )
@@ -124,7 +132,7 @@ def calculate_all_ratios(data_inputs, test_parameters, models, priors, device, c
             "prior_name": prior.__name__,
             "model_state": _state_dict_to_cpu(model_lookup[prior.__name__]),
             "config": config,
-            "data_inputs": _as_2d_data(data_inputs),
+            "data_inputs": _resolve_prior_data_inputs(data_inputs, prior.__name__),
             "test_parameters": list(test_parameters),
             "device": device_names[idx % n_cuda_workers],
         }
@@ -173,11 +181,15 @@ def _compute_prior_reweight_result(
 
     reweighting = ratios[1] / np.clip(ratios[0], 1e-12, None)
     data_x_plot = [data[:, projection_dim] for data in data_x_full]
+    shared_edges = np.histogram_bin_edges(
+        np.concatenate([np.asarray(data_x_plot[0]).ravel(), np.asarray(data_x_plot[1]).ravel()]),
+        bins=n_bins,
+    )
     reweighted_distribution, edges = np.histogram(
         data_x_plot[0],
-        bins=n_bins,
+        bins=shared_edges,
         weights=reweighting,
-        density=False,
+        density=True,
     )
     bin_centers = 0.5 * (edges[:-1] + edges[1:])
     return prior_name, data_x_plot, ratios, (bin_centers, reweighted_distribution), reweighting, model_outs
@@ -325,10 +337,28 @@ def _spearman_correlation(x, y):
     return float(np.corrcoef(rank_x, rank_y)[0, 1])
 
 
-def sample_theta_pairs(pair_count, parameter_range, n_dimensions, generator):
+def sample_theta_pairs(pair_count, parameter_range, n_dimensions, generator, support_axes=None):
     pair_count = int(pair_count)
     if pair_count < 1:
         raise ValueError("pair_count must be at least 1.")
+
+    if support_axes is not None:
+        if len(support_axes) != int(n_dimensions):
+            raise ValueError(
+                f"Expected support_axes for {n_dimensions} dimensions, got {len(support_axes)}."
+            )
+        theta_0 = np.empty((pair_count, int(n_dimensions)), dtype=np.float32)
+        theta_1 = np.empty((pair_count, int(n_dimensions)), dtype=np.float32)
+        for dim, axis in enumerate(support_axes):
+            axis = np.asarray(axis, dtype=np.float32).ravel()
+            if axis.size == 0:
+                raise ValueError("Each support axis must contain at least one point.")
+            idx_0 = generator.integers(0, axis.size, size=pair_count, endpoint=False)
+            idx_1 = generator.integers(0, axis.size, size=pair_count, endpoint=False)
+            theta_0[:, dim] = axis[idx_0]
+            theta_1[:, dim] = axis[idx_1]
+        distances = np.linalg.norm(theta_1 - theta_0, axis=1).astype(np.float64)
+        return theta_0, theta_1, distances
 
     low, high = parameter_range
     theta_0 = generator.uniform(low=low, high=high, size=(pair_count, int(n_dimensions))).astype(np.float32)
@@ -369,6 +399,7 @@ def build_quantitative_verification_bundle(
     reweight_source_samples,
     reweight_target_samples,
     swd_projections,
+    support_axes=None,
 ):
     n_dimensions = config["data"]["n_parameters"]
     parameter_range = config["data"]["parameter_range"]
@@ -378,6 +409,7 @@ def build_quantitative_verification_bundle(
         parameter_range=parameter_range,
         n_dimensions=n_dimensions,
         generator=generator,
+        support_axes=support_axes,
     )
 
     model_eval_source = _sample_data_for_theta_pairs(theta_0, model_samples_per_endpoint, config, generator)

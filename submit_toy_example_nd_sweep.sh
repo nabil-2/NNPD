@@ -5,7 +5,7 @@ print_help() {
     cat <<EOF
 Usage: $0 [toy_example_nD_tidy.py args...]
 
-Submit the full toy nD sweep in descending dimension order: 7, 6, 5, 4, 3, 2, 1.
+Submit the full toy nD sweep in descending dimension order: 6, 5, 4, 3, 2, 1.
 
 This wrapper delegates every submission to submit_toy_example_nd.sh, so the existing
 ranked resource selection is reused unchanged for each job.
@@ -56,7 +56,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 shared_python_args=("$@")
-dimensions=(7 6 5 4 3 2 1)
+dimensions=(6 5 4 3 2 1)
 
 for n_parameters in "${dimensions[@]}"; do
     echo "Submitting ${n_parameters}D run via submit_toy_example_nd.sh"

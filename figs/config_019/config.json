@@ -1,0 +1,37 @@
+{
+  "classifier": {
+    "n_hidden_layers": 3,
+    "n_inputs": 2,
+    "n_units": 64
+  },
+  "data": {
+    "n_parameters": 2,
+    "n_test": 2000,
+    "n_train": 8000,
+    "n_validation": 2000,
+    "parameter_range": [
+      0,
+      10
+    ],
+    "prior_args": {
+      "exponential": [
+        0.1
+      ],
+      "grid": [
+        0.2
+      ],
+      "normal": [
+        5,
+        4
+      ],
+      "uniform": null
+    },
+    "std_dev": 2
+  },
+  "training": {
+    "batch_size": 128,
+    "learning_rate": 0.001,
+    "model_iterations": 1,
+    "n_epochs": 3
+  }
+}

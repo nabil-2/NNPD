@@ -8,7 +8,7 @@
   "posterior_grid_points": 200,
   "seed": 0,
   "verification_model_samples_per_endpoint": 512,
-  "verification_pair_count": 32,
+  "verification_pair_count": 256,
   "verification_reweight_source_samples": 2048,
   "verification_reweight_target_samples": 2048,
   "verification_swd_projections": 32

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import numpy as np
 from matplotlib import pyplot as plt
+from matplotlib.lines import Line2D
 
 from .posterior import _extract_hpd_level, _extract_map_array
+from .priors import snap_to_support_axis
 
 
 def plot_prior_contours(priors, parameter_range, n_parameters, n_points=200, fixed_value=None):
@@ -22,9 +24,32 @@ def plot_prior_contours(priors, parameter_range, n_parameters, n_points=200, fix
     axes = ax.flatten() if isinstance(ax, np.ndarray) else [ax]
 
     for i, prior in enumerate(priors):
-        z = prior(grid)
-        cf = axes[i].contourf(x, y, z, levels=30, cmap="viridis")
-        axes[i].contour(x, y, z, levels=10, colors="k", linewidths=0.5, alpha=0.4)
+        support_axes = getattr(prior, "support_axes", None)
+        if getattr(prior, "support_kind", None) == "discrete_grid" and support_axes is not None:
+            x_axis = np.asarray(support_axes[0], dtype=float)
+            y_axis = np.asarray(support_axes[1], dtype=float)
+            x_disc, y_disc = np.meshgrid(x_axis, y_axis, indexing="ij")
+            grid_disc = np.empty(x_disc.shape + (n_parameters,), dtype=float)
+            for dim in range(n_parameters):
+                axis = np.asarray(support_axes[dim], dtype=float)
+                fill_value = axis[axis.size // 2] if fixed_value is None else snap_to_support_axis(fixed_value, axis)
+                grid_disc[..., dim] = float(fill_value)
+            grid_disc[..., 0] = x_disc
+            grid_disc[..., 1] = y_disc
+            z = prior(grid_disc)
+            cf = axes[i].scatter(
+                x_disc.ravel(),
+                y_disc.ravel(),
+                c=np.asarray(z, dtype=float).ravel(),
+                cmap="viridis",
+                marker="s",
+                s=18,
+                linewidths=0.0,
+            )
+        else:
+            z = prior(grid)
+            cf = axes[i].contourf(x, y, z, levels=30, cmap="viridis")
+            axes[i].contour(x, y, z, levels=10, colors="k", linewidths=0.5, alpha=0.4)
         axes[i].set_title(prior.__name__)
         axes[i].set_xlabel(r"$\theta_0$")
         axes[i].set_ylabel(r"$\theta_1$")
@@ -161,6 +186,7 @@ def plot_errorbars(
     parameters_post,
     show_annotations=True,
     filename=None,
+    layout="vertical",
 ):
     _, parameter_combinations, _ = inference_data
     true_params = np.asarray(parameter_combinations, dtype=np.float32)
@@ -168,11 +194,30 @@ def plot_errorbars(
     n_dims = len(parameters_post)
     n_posteriors = len(hpds)
 
-    plt.rcParams.update({"font.size": 12})
+    plt.rcParams.update({"font.size": 16})
+    title_fontsize = 18
+    label_fontsize = 16
+    tick_fontsize = 14
+    legend_fontsize = 14
+    if layout == "vertical":
+        nrows, ncols = n_posteriors, n_dims
+
+        def _axis_at(prior_idx, dim_idx):
+            return ax[prior_idx, dim_idx]
+
+    elif layout == "horizontal":
+        nrows, ncols = n_dims, n_posteriors
+
+        def _axis_at(prior_idx, dim_idx):
+            return ax[dim_idx, prior_idx]
+
+    else:
+        raise ValueError("layout must be 'vertical' or 'horizontal'")
+
     fig, ax = plt.subplots(
-        nrows=n_posteriors,
-        ncols=n_dims,
-        figsize=(5 * n_dims, 3.8 * n_posteriors),
+        nrows=nrows,
+        ncols=ncols,
+        figsize=(5 * ncols, 3.8 * nrows),
         squeeze=False,
     )
 
@@ -209,7 +254,7 @@ def plot_errorbars(
         n_points = int(y_hat.shape[0])
         if intervals68.shape[0] != n_points or intervals95.shape[0] != n_points:
             raise ValueError(
-                f"For prior '{prior_name}', HPD count does not match posterior count ({n_points})."
+                f"For prior '{prior_name}', HLD count does not match posterior count ({n_points})."
             )
 
         for d in range(n_dims):
@@ -236,7 +281,7 @@ def plot_errorbars(
                 widths68,
             )
 
-            a = ax[i, d]
+            a = _axis_at(i, d)
             yerr95 = np.vstack([grouped["l95"], grouped["u95"]])
             yerr68 = np.vstack([grouped["l68"], grouped["u68"]])
             a.errorbar(
@@ -248,7 +293,7 @@ def plot_errorbars(
                 ecolor="C0",
                 alpha=0.35,
                 capsize=5,
-                label="95% HPD",
+                label="95% HLD",
             )
             a.errorbar(
                 grouped["x"],
@@ -258,7 +303,7 @@ def plot_errorbars(
                 color="C0",
                 ecolor="C0",
                 capsize=5,
-                label="68% HPD",
+                label="68% HLD",
             )
 
             abs_errors = grouped["y"] - grouped["x"]
@@ -282,11 +327,12 @@ def plot_errorbars(
 
             tmin, tmax = parameters_post[d][0], parameters_post[d][-1]
             a.plot([tmin, tmax], [tmin, tmax], "k--", label="Ideal")
-            a.set_title(f"{prior_name} prior (θ_{d})")
-            a.set_xlabel(f"True $\\theta_{d}$")
-            a.set_ylabel(f"Estimated $\\theta_{d}$")
+            a.set_title(rf"{prior_name} prior ($\theta_{{{d}}}$)", fontsize=title_fontsize)
+            a.set_xlabel(rf"True $\theta_{{{d}}}$", fontsize=label_fontsize)
+            a.set_ylabel(rf"Estimated $\theta_{{{d}}}$", fontsize=label_fontsize)
+            a.tick_params(axis="both", labelsize=tick_fontsize)
             a.grid()
-            a.legend()
+            a.legend(fontsize=legend_fontsize)
 
     fig.tight_layout()
     if filename is not None:
@@ -294,7 +340,7 @@ def plot_errorbars(
     return fig, ax
 
 
-def plot_error_and_hpd_width(hpds: dict, inference_data, all_posteriors, parameters_post, filename=None):
+def plot_error_and_hld_width(hpds: dict, inference_data, all_posteriors, parameters_post, filename=None):
     _, parameter_combinations, _ = inference_data
     true_params = np.asarray(parameter_combinations, dtype=np.float32)
 
@@ -355,7 +401,7 @@ def plot_error_and_hpd_width(hpds: dict, inference_data, all_posteriors, paramet
         intervals_68, _ = _extract_hpd_level(errors, level="68", n_dims=n_dims)
         if intervals_68.shape[0] != y_hat.shape[0]:
             raise ValueError(
-                f"For prior '{prior_name}', HPD count ({intervals_68.shape[0]}) does not match "
+                f"For prior '{prior_name}', HLD count ({intervals_68.shape[0]}) does not match "
                 f"posterior count ({y_hat.shape[0]})."
             )
 
@@ -423,14 +469,14 @@ def plot_error_and_hpd_width(hpds: dict, inference_data, all_posteriors, paramet
             color="C1",
             s=20,
             marker="s",
-            label="Avg dim 68% width",
+            label="Avg dim 68% HLD width",
         )
 
         a1.set_ylim(*bias_comb_ylim)
         a1b.set_ylim(*width_comb_ylim)
         a1.set_xlabel("True inference value")
         a1.set_ylabel("Bias", color="C0")
-        a1b.set_ylabel("68% width", color="C1")
+        a1b.set_ylabel("68% HLD width", color="C1")
         a1.tick_params(axis="y", labelcolor="C0")
         a1b.tick_params(axis="y", labelcolor="C1")
         a1.grid(True, alpha=0.3)
@@ -450,9 +496,9 @@ def plot_error_and_hpd_width(hpds: dict, inference_data, all_posteriors, paramet
             )
         a2.set_ylim(*width_dims_ylim)
         a2.set_xlabel("True value in that dimension")
-        a2.set_ylabel("68% width")
+        a2.set_ylabel("68% HLD width")
         a2.grid(True, alpha=0.3)
-        a2.set_title(f"{prior_name}: width per dimension")
+        a2.set_title(f"{prior_name}: HLD width per dimension")
         a2.legend(loc="best", fontsize=9, ncol=min(n_dims, 3))
 
         a3 = ax[r, 2]
@@ -484,6 +530,10 @@ def plot_error_and_hpd_width(hpds: dict, inference_data, all_posteriors, paramet
     return fig, ax
 
 
+# Backward-compatible alias for older scripts/notebooks that still use the old HPD name.
+plot_error_and_hpd_width = plot_error_and_hld_width
+
+
 def _enforce_markers(fig, filename=None):
     for axis in fig.axes:
         title = axis.get_title().lower()
@@ -505,7 +555,7 @@ def _enforce_markers(fig, filename=None):
 def plot_ratio_violins(all_ratios, test_parameters, filename=None):
     plt.rcParams.update({"font.size": 10})
     n_priors = len(all_ratios)
-    ncols = 3
+    ncols = _verification_grid_columns(n_priors)
     nrows = (n_priors + ncols - 1) // ncols
     fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 4 * nrows))
     axes = ax.flatten() if isinstance(ax, np.ndarray) else [ax]
@@ -562,8 +612,9 @@ def plot_reweighted_distributions(
 ):
     x_all = np.concatenate([np.asarray(data_x[0]).ravel(), np.asarray(data_x[1]).ravel()])
     x_min, x_max = x_all.min(), x_all.max()
+    shared_bins = np.histogram_bin_edges(x_all, bins=n_bins)
 
-    ncols = 3
+    ncols = _verification_grid_columns(len(priors))
     nrows = (len(priors) + ncols - 1) // ncols
     plt.rcParams.update({"font.size": 10})
     fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 4 * nrows))
@@ -573,16 +624,16 @@ def plot_reweighted_distributions(
         axis = axes[i]
         axis.hist(
             data_x[0],
-            bins=n_bins,
-            density=False,
+            bins=shared_bins,
+            density=True,
             alpha=0.45,
             label=f"x|θ={test_parameters[0]}",
             color="C0",
         )
         axis.hist(
             data_x[1],
-            bins=n_bins,
-            density=False,
+            bins=shared_bins,
+            density=True,
             alpha=0.45,
             label=f"x|θ={test_parameters[1]}",
             color="C1",
@@ -659,13 +710,28 @@ def _format_metric(value, digits=3):
     return f"{value:.{digits}g}"
 
 
+def _verification_grid_columns(n_priors):
+    n_priors = int(n_priors)
+    return max(1, min(2, n_priors))
+
+
 def plot_log_ratio_error_vs_distance(model_quality_results, filename=None, n_bins=8):
     plt.rcParams.update({"font.size": 10})
     n_priors = len(model_quality_results)
-    ncols = 3
+    ncols = _verification_grid_columns(n_priors)
     nrows = (n_priors + ncols - 1) // ncols
     fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 4 * nrows))
     axes = ax.flatten() if isinstance(ax, np.ndarray) else [ax]
+    rmse_arrays = [
+        np.asarray(result["pair_metrics"]["rmse_log_r10"], dtype=float).ravel()
+        for result in model_quality_results.values()
+    ]
+    rmse_max = max((float(np.max(values)) for values in rmse_arrays if values.size), default=1.0)
+    rmse_ylim = (0.0, rmse_max * 1.05 if rmse_max > 0 else 1.0)
+    legend_handles = [
+        Line2D([], [], linestyle="", marker="o", color="tab:blue", markersize=6, label="parameter pair"),
+        Line2D([], [], linestyle="-", marker="o", color="black", linewidth=1.5, markersize=4, label="binned median"),
+    ]
 
     for idx, (prior_name, result) in enumerate(model_quality_results.items()):
         axis = axes[idx]
@@ -674,7 +740,7 @@ def plot_log_ratio_error_vs_distance(model_quality_results, filename=None, n_bin
         distance = np.asarray(pair_metrics["distance"], dtype=float)
         rmse = np.asarray(pair_metrics["rmse_log_r10"], dtype=float)
 
-        axis.scatter(distance, rmse, alpha=0.7, s=25)
+        axis.scatter(distance, rmse, alpha=0.7, s=25, color="tab:blue")
         line_x, line_y = _binned_median_curve(distance, rmse, n_bins=n_bins)
         if line_x.size:
             axis.plot(line_x, line_y, color="black", linewidth=1.5, marker="o", markersize=4)
@@ -687,13 +753,15 @@ def plot_log_ratio_error_vs_distance(model_quality_results, filename=None, n_bin
         axis.set_title(title)
         axis.set_xlabel(r"$||\theta_1 - \theta_0||_2$")
         axis.set_ylabel(r"RMSE of $\log \hat{R}_{10}(x)$")
+        axis.set_ylim(*rmse_ylim)
         axis.grid(alpha=0.3)
+        axis.legend(handles=legend_handles, loc="upper right", fontsize=9)
 
         spearman = summary.get("spearman_rmse_vs_distance", float("nan"))
         axis.text(
             0.03,
             0.97,
-            rf"$\rho$={_format_metric(spearman)}",
+            rf"Spearman $\rho$={_format_metric(spearman)}",
             transform=axis.transAxes,
             ha="left",
             va="top",
@@ -712,7 +780,7 @@ def plot_log_ratio_error_vs_distance(model_quality_results, filename=None, n_bin
 def plot_log_ratio_exact_vs_predicted(model_quality_results, filename=None):
     plt.rcParams.update({"font.size": 10})
     n_priors = len(model_quality_results)
-    ncols = 3
+    ncols = _verification_grid_columns(n_priors)
     nrows = (n_priors + ncols - 1) // ncols
     fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 4 * nrows))
     axes = ax.flatten() if isinstance(ax, np.ndarray) else [ax]
@@ -727,7 +795,14 @@ def plot_log_ratio_exact_vs_predicted(model_quality_results, filename=None):
         hexbin = axis.hexbin(exact, predicted, gridsize=35, mincnt=1, cmap="viridis")
         min_edge = float(np.min(np.concatenate([exact, predicted])))
         max_edge = float(np.max(np.concatenate([exact, predicted])))
-        axis.plot([min_edge, max_edge], [min_edge, max_edge], linestyle="--", color="black", linewidth=1)
+        axis.plot(
+            [min_edge, max_edge],
+            [min_edge, max_edge],
+            linestyle="--",
+            color="black",
+            linewidth=1,
+            label="ideal agreement",
+        )
         title = (
             f"{prior_name} prior\n"
             f"pooled RMSE={_format_metric(summary['pooled_rmse_log_r10'])} | "
@@ -738,7 +813,8 @@ def plot_log_ratio_exact_vs_predicted(model_quality_results, filename=None):
         axis.set_xlabel(r"exact $\log R_{10}(x)$")
         axis.set_ylabel(r"predicted $\log \hat{R}_{10}(x)$")
         axis.grid(alpha=0.3)
-        fig.colorbar(hexbin, ax=axis, fraction=0.046, pad=0.04)
+        axis.legend(loc="upper left", fontsize=9)
+        fig.colorbar(hexbin, ax=axis, fraction=0.046, pad=0.04, label="samples per hexbin")
 
     for idx in range(n_priors, nrows * ncols):
         fig.delaxes(axes[idx])
@@ -752,10 +828,20 @@ def plot_log_ratio_exact_vs_predicted(model_quality_results, filename=None):
 def plot_reweighting_swd_vs_distance(reweighting_results, filename=None, n_bins=8):
     plt.rcParams.update({"font.size": 10})
     n_priors = len(reweighting_results)
-    ncols = 3
+    ncols = _verification_grid_columns(n_priors)
     nrows = (n_priors + ncols - 1) // ncols
     fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=(6 * ncols, 4 * nrows))
     axes = ax.flatten() if isinstance(ax, np.ndarray) else [ax]
+    swd_arrays = [
+        np.asarray(result["pair_metrics"]["swd"], dtype=float).ravel()
+        for result in reweighting_results.values()
+    ]
+    swd_max = max((float(np.max(values)) for values in swd_arrays if values.size), default=1.0)
+    swd_ylim = (0.0, swd_max * 1.05 if swd_max > 0 else 1.0)
+    legend_handles = [
+        Line2D([], [], linestyle="", marker="o", color="tab:blue", markersize=6, label="parameter pair"),
+        Line2D([], [], linestyle="-", marker="o", color="black", linewidth=1.5, markersize=4, label="binned median"),
+    ]
 
     for idx, (prior_name, result) in enumerate(reweighting_results.items()):
         axis = axes[idx]
@@ -777,15 +863,17 @@ def plot_reweighting_swd_vs_distance(reweighting_results, filename=None, n_bins=
         )
         axis.set_title(title)
         axis.set_xlabel(r"$||\theta_1 - \theta_0||_2$")
-        axis.set_ylabel("weighted SW1")
+        axis.set_ylabel(r"$\mathrm{SW}_1$")
+        axis.set_ylim(*swd_ylim)
         axis.grid(alpha=0.3)
-        fig.colorbar(scatter, ax=axis, fraction=0.046, pad=0.04, label="ESS / N")
+        axis.legend(handles=legend_handles, loc="upper right", fontsize=9)
+        fig.colorbar(scatter, ax=axis, fraction=0.046, pad=0.04, label=r"$\mathrm{ESS}/N$")
 
         spearman = summary.get("spearman_swd_vs_distance", float("nan"))
         axis.text(
             0.03,
             0.97,
-            rf"$\rho$={_format_metric(spearman)}",
+            rf"Spearman $\rho$={_format_metric(spearman)}",
             transform=axis.transAxes,
             ha="left",
             va="top",
@@ -814,15 +902,15 @@ def plot_reweighting_summary(reweighting_results, filename=None):
     axes[0].violinplot(swd_values, positions=positions, showmeans=True, showextrema=True, widths=0.8)
     axes[0].set_xticks(positions)
     axes[0].set_xticklabels(prior_names)
-    axes[0].set_title("weighted SW1 by prior")
-    axes[0].set_ylabel("weighted SW1")
+    axes[0].set_title(r"$\mathrm{SW}_1$ by prior")
+    axes[0].set_ylabel(r"$\mathrm{SW}_1$")
     axes[0].grid(alpha=0.3)
 
     axes[1].violinplot(ess_fraction_values, positions=positions, showmeans=True, showextrema=True, widths=0.8)
     axes[1].set_xticks(positions)
     axes[1].set_xticklabels(prior_names)
-    axes[1].set_title("ESS fraction by prior")
-    axes[1].set_ylabel("ESS / N")
+    axes[1].set_title(r"$\mathrm{ESS}/N$ by prior")
+    axes[1].set_ylabel(r"$\mathrm{ESS}/N$")
     axes[1].grid(alpha=0.3)
 
     fig.tight_layout()
