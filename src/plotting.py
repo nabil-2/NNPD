@@ -194,11 +194,21 @@ def plot_errorbars(
     n_dims = len(parameters_post)
     n_posteriors = len(hpds)
 
-    plt.rcParams.update({"font.size": 16})
-    title_fontsize = 18
-    label_fontsize = 16
-    tick_fontsize = 14
-    legend_fontsize = 14
+    if layout == "horizontal":
+        plt.rcParams.update({"font.size": 20})
+        title_fontsize = 24
+        label_fontsize = 22
+        tick_fontsize = 18
+        legend_fontsize = 18
+        panel_height = 5.2
+    else:
+        plt.rcParams.update({"font.size": 16})
+        title_fontsize = 18
+        label_fontsize = 16
+        tick_fontsize = 14
+        legend_fontsize = 14
+        panel_height = 3.8
+
     if layout == "vertical":
         nrows, ncols = n_posteriors, n_dims
 
@@ -211,13 +221,21 @@ def plot_errorbars(
         def _axis_at(prior_idx, dim_idx):
             return ax[dim_idx, prior_idx]
 
+    elif layout == "grid":
+        n_panels = n_posteriors * n_dims
+        ncols = int(np.ceil(np.sqrt(n_panels)))
+        nrows = (n_panels + ncols - 1) // ncols
+
+        def _axis_at(prior_idx, dim_idx):
+            return ax.flat[prior_idx * n_dims + dim_idx]
+
     else:
-        raise ValueError("layout must be 'vertical' or 'horizontal'")
+        raise ValueError("layout must be 'vertical', 'horizontal', or 'grid'")
 
     fig, ax = plt.subplots(
         nrows=nrows,
         ncols=ncols,
-        figsize=(5 * ncols, 3.8 * nrows),
+        figsize=(5 * ncols, panel_height * nrows),
         squeeze=False,
     )
 
@@ -333,6 +351,10 @@ def plot_errorbars(
             a.tick_params(axis="both", labelsize=tick_fontsize)
             a.grid()
             a.legend(fontsize=legend_fontsize)
+
+    if layout == "grid":
+        for idx in range(n_posteriors * n_dims, nrows * ncols):
+            fig.delaxes(ax.flat[idx])
 
     fig.tight_layout()
     if filename is not None:
