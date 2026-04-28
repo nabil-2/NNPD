@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    echo "Source this script instead of executing it: source ./activate_nnpd.sh" >&2
+    echo "Source this script instead of executing it: source ./scripts/activate_nnpd.sh" >&2
     exit 1
 fi
 
-_nnpd_repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_nnpd_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_nnpd_repo_root="$(cd "${_nnpd_script_dir}/.." && pwd)"
 _nnpd_venv="$_nnpd_repo_root/.venv"
 
 if [[ ! -d "$_nnpd_venv" ]]; then

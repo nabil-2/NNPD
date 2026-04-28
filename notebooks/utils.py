@@ -9,6 +9,9 @@ except ImportError:
 
 generator = np.random.default_rng(0)
 
+def _default_figs_root():
+    return Path(__file__).resolve().parents[1] / "figs"
+
 def normalize(function, lower, upper):
     x = np.linspace(lower, upper, 1000)
     integral = np.trapezoid(function(x), x)
@@ -82,7 +85,7 @@ def get_data(prior, config, show_output=True):
     
     return (data_train, parameters_train, labels_train), (data_validation, parameters_validation, labels_validation), (data_test, parameters_test, labels_test)
 
-def get_filepath(filename, config, root="figs"):
+def get_filepath(filename, config, root=None):
     """
     Return figs/config_XXX/filename where:
         - XXX is a zero-padded counter (starting at 000).
@@ -90,7 +93,7 @@ def get_filepath(filename, config, root="figs"):
     Create a new directory (and save config.json) only if no matching config is found.
     Handles filenames with subdirectories (e.g., "images/img.png").
     """
-    root_path = Path(root)
+    root_path = _default_figs_root() if root is None else Path(root)
     root_path.mkdir(exist_ok=True)
     # Canonical JSON for comparison
     config_str = json.dumps(config, sort_keys=True, separators=(',', ':'))

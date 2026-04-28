@@ -301,7 +301,8 @@ fi
 
 n_parameters="$1"
 shift
-project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+project_root="$(cd "${script_dir}/.." && pwd)"
 log_dir="${project_root}/log"
 mkdir -p "${log_dir}"
 

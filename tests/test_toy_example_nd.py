@@ -49,7 +49,7 @@ from src.verification import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = REPO_ROOT / "toy_example_nD_tidy.py"
-SWEEP_SCRIPT_PATH = REPO_ROOT / "submit_toy_example_nd_sweep.sh"
+SWEEP_SCRIPT_PATH = REPO_ROOT / "scripts" / "submit_toy_example_nd_sweep.sh"
 
 
 def _small_config(n_parameters):
@@ -949,7 +949,7 @@ class SweepLauncherTests(unittest.TestCase):
         submit_stub.chmod(0o755)
         return sweep_copy, calls_file
 
-    def test_sweep_submits_dimensions_in_descending_order(self):
+    def test_sweep_submits_default_dimensions_in_ascending_order(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             sweep_copy, calls_file = self._create_stubbed_sweep_scripts(Path(tmpdir))
             subprocess.run(
@@ -975,13 +975,44 @@ class SweepLauncherTests(unittest.TestCase):
             self.assertEqual(
                 calls_file.read_text().splitlines(),
                 [
-                    "7 --device cpu --max-gpus 2 --seed 17 --no-save",
-                    "6 --device cpu --max-gpus 2 --seed 17 --no-save",
-                    "5 --device cpu --max-gpus 2 --seed 17 --no-save",
-                    "4 --device cpu --max-gpus 2 --seed 17 --no-save",
-                    "3 --device cpu --max-gpus 2 --seed 17 --no-save",
-                    "2 --device cpu --max-gpus 2 --seed 17 --no-save",
                     "1 --device cpu --max-gpus 2 --seed 17 --no-save",
+                    "2 --device cpu --max-gpus 2 --seed 17 --no-save",
+                    "3 --device cpu --max-gpus 2 --seed 17 --no-save",
+                    "4 --device cpu --max-gpus 2 --seed 17 --no-save",
+                    "5 --device cpu --max-gpus 2 --seed 17 --no-save",
+                    "6 --device cpu --max-gpus 2 --seed 17 --no-save",
+                ],
+            )
+
+    def test_sweep_max_dimension_option_sets_upper_bound(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sweep_copy, calls_file = self._create_stubbed_sweep_scripts(Path(tmpdir))
+            subprocess.run(
+                [
+                    "bash",
+                    str(sweep_copy),
+                    "--device",
+                    "cpu",
+                    "--max-dimension",
+                    "3",
+                    "--seed",
+                    "17",
+                    "--no-save",
+                ],
+                cwd=tmpdir,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+            self.assertTrue(calls_file.exists())
+            self.assertEqual(
+                calls_file.read_text().splitlines(),
+                [
+                    "1 --device cpu --seed 17 --no-save",
+                    "2 --device cpu --seed 17 --no-save",
+                    "3 --device cpu --seed 17 --no-save",
                 ],
             )
 
