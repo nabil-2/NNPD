@@ -3,7 +3,7 @@ set -euo pipefail
 
 print_help() {
     cat <<EOF
-Usage: $0 [--interactive] [--follow] <n-parameters> [toy_example_nD_tidy.py args...]
+Usage: $0 [--interactive] [--follow] <n-parameters> [toy_example_nD.py args...]
 
 Submit the toy nD run as a Slurm job on Maxwell.
 
@@ -38,7 +38,7 @@ Environment overrides:
   NNPD_CONSTRAINT           Slurm constraint override
   NNPD_JOB_NAME             Job name override
   NNPD_MAIL_USER            Email for END notifications (batch mode only)
-  NNPD_PYTHON_ARGS          Extra arguments passed to toy_example_nD_tidy.py
+  NNPD_PYTHON_ARGS          Extra arguments passed to toy_example_nD.py
 
 Note:
   On Maxwell, GPU selection is feature-based (for example H200&GPUx4).
@@ -49,7 +49,7 @@ Note:
   allgpu A100x4, maxgpu L40Sx4, maxgpu V100x4, then broader allgpu fallbacks.
 
 To see the Python script help locally, run:
-  python toy_example_nD_tidy.py --help
+  python toy_example_nD.py --help
 EOF
 }
 
@@ -354,7 +354,7 @@ elif [[ "${manual_resource_override}" == "1" ]]; then
 fi
 
 job_name="${NNPD_JOB_NAME:-toy-nd-${n_parameters}d}"
-python_script="${project_root}/toy_example_nD_tidy.py"
+python_script="${project_root}/toy_example_nD.py"
 python_args="${NNPD_PYTHON_ARGS:-}"
 cli_python_args=("$@")
 python_args_array=(--max-gpus "${gpu_count}")

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess
 import shutil
@@ -45,6 +47,7 @@ from src.verification import (
     exact_log_r10_gaussian,
     weighted_sliced_wasserstein_distance,
 )
+from toy_example_nD import build_config, build_parser
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -160,6 +163,66 @@ def _reference_posteriors(
 
     model.to("cpu")
     return posteriors_grouped, ratios_grouped, errors_posterior, errors_ratio
+
+
+class ConfigTests(unittest.TestCase):
+    def _parse_config_args(self, *extra_args):
+        return build_parser().parse_args([*map(str, extra_args)])
+
+    def test_build_config_fixed_sample_scaling_preserves_counts(self):
+        args = self._parse_config_args(
+            3,
+            "--n-train",
+            10,
+            "--n-test",
+            7,
+            "--n-validation",
+            5,
+        )
+
+        config = build_config(args)
+        data_config = config["data"]
+
+        self.assertEqual(data_config["n_train"], 10)
+        self.assertEqual(data_config["n_test"], 7)
+        self.assertEqual(data_config["n_validation"], 5)
+        self.assertEqual(data_config["sample_scaling"], "fixed")
+        self.assertEqual(data_config["sample_scaling_factor"], 1)
+        self.assertEqual(data_config["n_train_base"], 10)
+        self.assertEqual(data_config["n_validation_base"], 5)
+
+    def test_build_config_quadratic_sample_scaling_scales_train_and_validation(self):
+        args = self._parse_config_args(
+            3,
+            "--n-train",
+            10,
+            "--n-test",
+            7,
+            "--n-validation",
+            5,
+            "--sample-scaling",
+            "quadratic",
+        )
+
+        config = build_config(args)
+        data_config = config["data"]
+
+        self.assertEqual(data_config["n_train"], 90)
+        self.assertEqual(data_config["n_test"], 7)
+        self.assertEqual(data_config["n_validation"], 45)
+        self.assertEqual(data_config["sample_scaling"], "quadratic")
+        self.assertEqual(data_config["sample_scaling_factor"], 9)
+        self.assertEqual(data_config["n_train_base"], 10)
+        self.assertEqual(data_config["n_validation_base"], 5)
+
+    def test_parser_accepts_quadratic_sample_scaling(self):
+        args = self._parse_config_args(2, "--sample-scaling", "quadratic")
+
+        self.assertEqual(args.sample_scaling, "quadratic")
+
+    def test_parser_rejects_invalid_sample_scaling(self):
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            self._parse_config_args(2, "--sample-scaling", "linear")
 
 
 class SamplingTests(unittest.TestCase):

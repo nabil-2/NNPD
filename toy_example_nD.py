@@ -11,7 +11,21 @@ from pathlib import Path
 
 import numpy as np
 
+
+def _sample_scaling_factor(sample_scaling: str, n_parameters: int) -> int:
+    if sample_scaling == "fixed":
+        return 1
+    if sample_scaling == "quadratic":
+        return int(n_parameters) ** 2
+    raise ValueError(f"Unsupported sample scaling mode: {sample_scaling!r}.")
+
+
 def build_config(args: argparse.Namespace) -> dict:
+    sample_scaling = getattr(args, "sample_scaling", "fixed")
+    sample_scaling_factor = _sample_scaling_factor(sample_scaling, args.n_parameters)
+    n_train_base = int(args.n_train)
+    n_validation_base = int(args.n_validation)
+
     return {
         "data": {
             "prior_args": {
@@ -23,9 +37,13 @@ def build_config(args: argparse.Namespace) -> dict:
             "parameter_range": (0, 10),
             "std_dev": args.std_dev,
             "n_parameters": args.n_parameters,
-            "n_train": args.n_train,
+            "n_train": n_train_base * sample_scaling_factor,
             "n_test": args.n_test,
-            "n_validation": args.n_validation,
+            "n_validation": n_validation_base * sample_scaling_factor,
+            "sample_scaling": sample_scaling,
+            "sample_scaling_factor": sample_scaling_factor,
+            "n_train_base": n_train_base,
+            "n_validation_base": n_validation_base,
         },
         "classifier": {
             "n_inputs": args.n_parameters,
@@ -396,6 +414,14 @@ def run(args: argparse.Namespace) -> None:
 
     config = build_config(args)
     output_root = args.output_root
+
+    if config["data"]["sample_scaling"] == "quadratic" and config["data"]["sample_scaling_factor"] != 1:
+        print(
+            "Quadratic sample scaling enabled: "
+            f"n_train {config['data']['n_train_base']} -> {config['data']['n_train']}, "
+            f"n_validation {config['data']['n_validation_base']} -> {config['data']['n_validation']} "
+            f"(factor {config['data']['sample_scaling_factor']})."
+        )
 
     if config["training"]["model_iterations"] != 1:
         raise ValueError(
@@ -950,6 +976,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--n-train", type=int, default=70_000)
     parser.add_argument("--n-test", type=int, default=15_000)
     parser.add_argument("--n-validation", type=int, default=15_000)
+    parser.add_argument(
+        "--sample-scaling",
+        choices=("fixed", "quadratic"),
+        default="fixed",
+        help=(
+            "Scale training and validation sample counts with dimension. "
+            "Use 'quadratic' to treat --n-train/--n-validation as 1D baselines."
+        ),
+    )
     parser.add_argument("--n-hidden-layers", type=int, default=3)
     parser.add_argument("--n-units", type=int, default=64)
     parser.add_argument("--learning-rate", type=float, default=0.001)

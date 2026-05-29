@@ -3,7 +3,7 @@ set -euo pipefail
 
 print_help() {
     cat <<EOF
-Usage: $0 [--max-dimension N] [toy_example_nD_tidy.py args...]
+Usage: $0 [--max-dimension N] [toy_example_nD.py args...]
 
 Submit the toy nD sweep in ascending dimension order: 1, 2, ..., N.
 By default, N is 6.
