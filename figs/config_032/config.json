@@ -1,0 +1,41 @@
+{
+  "classifier": {
+    "n_hidden_layers": 3,
+    "n_inputs": 1,
+    "n_units": 64
+  },
+  "data": {
+    "n_parameters": 1,
+    "n_test": 15000,
+    "n_train": 70000,
+    "n_train_base": 70000,
+    "n_validation": 15000,
+    "n_validation_base": 15000,
+    "parameter_range": [
+      0,
+      10
+    ],
+    "prior_args": {
+      "exponential": [
+        0.1
+      ],
+      "grid": [
+        0.2
+      ],
+      "normal": [
+        5,
+        4
+      ],
+      "uniform": null
+    },
+    "sample_scaling": "fixed",
+    "sample_scaling_factor": 1,
+    "std_dev": 2.0
+  },
+  "training": {
+    "batch_size": 128,
+    "learning_rate": 0.001,
+    "model_iterations": 1,
+    "n_epochs": 5
+  }
+}

@@ -334,6 +334,77 @@ def _true_parameter_values_from_indices(
     return np.stack([x_values[np.asarray(coord, dtype=int)] for coord in coordinates], axis=1)
 
 
+def _append_raw_frames(
+    *,
+    map_frames: list[pd.DataFrame],
+    interval_frames: list[pd.DataFrame],
+    metadata_rows: list[dict],
+    config_id: str,
+    dimension: int,
+    prior: str,
+    selected_indices: np.ndarray,
+    true_values: np.ndarray,
+    ratio_map_subset: np.ndarray,
+    hpd_68_subset: np.ndarray,
+    hpd_95_subset: np.ndarray,
+    n_total_points: int,
+    was_sampled: bool,
+) -> None:
+    metadata_rows.append(
+        {
+            "config_id": config_id,
+            "dimension": dimension,
+            "prior": prior,
+            "n_total_points": int(n_total_points),
+            "n_loaded_points": int(selected_indices.size),
+            "sampled": bool(was_sampled),
+        }
+    )
+
+    for dim_index in range(dimension):
+        true_column = true_values[:, dim_index]
+        map_column = ratio_map_subset[:, dim_index]
+        map_frames.append(
+            pd.DataFrame(
+                {
+                    "config_id": config_id,
+                    "dimension": dimension,
+                    "prior": prior,
+                    "sample_index": selected_indices,
+                    "dim_index": dim_index,
+                    "true_value": true_column,
+                    "map_estimate": map_column,
+                    "map_error": map_column - true_column,
+                    "n_total_points": int(n_total_points),
+                    "sampled": bool(was_sampled),
+                }
+            )
+        )
+
+        for level_name, interval_subset in (("68", hpd_68_subset), ("95", hpd_95_subset)):
+            low = interval_subset[:, dim_index, 0]
+            high = interval_subset[:, dim_index, 1]
+            interval_frames.append(
+                pd.DataFrame(
+                    {
+                        "config_id": config_id,
+                        "dimension": dimension,
+                        "prior": prior,
+                        "interval_level": level_name,
+                        "sample_index": selected_indices,
+                        "dim_index": dim_index,
+                        "true_value": true_column,
+                        "low": low,
+                        "high": high,
+                        "width": high - low,
+                        "contains_true": (true_column >= low) & (true_column <= high),
+                        "n_total_points": int(n_total_points),
+                        "sampled": bool(was_sampled),
+                    }
+                )
+            )
+
+
 def load_raw_compact_store(
     figs_root: str | Path,
     config_ids: list[str] | tuple[str, ...],
@@ -360,6 +431,53 @@ def load_raw_compact_store(
         analysis_bundle = _load_json(raw_paths["analysis_bundle_json"])
         dimension = int(config["data"]["n_parameters"])
         bundle_dir = raw_paths["analysis_bundle_json"].parent
+        raw_diagnostic_files = analysis_bundle.get("artifacts", {}).get("raw_diagnostic_files", {})
+        if raw_diagnostic_files:
+            available_priors = [
+                prior
+                for prior in requested_priors
+                if prior in raw_diagnostic_files
+            ]
+            for prior in available_priors:
+                raw_path = bundle_dir / raw_diagnostic_files[prior]
+                if not raw_path.exists():
+                    _warn_skip(
+                        config_id,
+                        f"raw diagnostic artifact for prior '{prior}' is missing: {raw_path}",
+                    )
+                    continue
+
+                with np.load(raw_path) as raw:
+                    sample_index = np.asarray(raw["sample_index"], dtype=np.int64)
+                    true_values_all = np.asarray(raw["true_params"], dtype=np.float32)
+                    ratio_map_all = np.asarray(raw["ratio_map"], dtype=np.float32)
+                    hpd_68_all = np.asarray(raw["ratio_hpd_68"], dtype=np.float32)
+                    hpd_95_all = np.asarray(raw["ratio_hpd_95"], dtype=np.float32)
+
+                n_loaded_total = int(sample_index.size)
+                selected_positions, was_sampled = _select_raw_indices(n_loaded_total, max_points_per_config)
+                n_total_points = int(
+                    analysis_bundle.get("posterior_workload", {}).get(
+                        "n_evaluated_parameter_settings",
+                        n_loaded_total,
+                    )
+                )
+                _append_raw_frames(
+                    map_frames=map_frames,
+                    interval_frames=interval_frames,
+                    metadata_rows=metadata_rows,
+                    config_id=config_id,
+                    dimension=dimension,
+                    prior=prior,
+                    selected_indices=sample_index[selected_positions],
+                    true_values=true_values_all[selected_positions],
+                    ratio_map_subset=ratio_map_all[selected_positions],
+                    hpd_68_subset=hpd_68_all[selected_positions],
+                    hpd_95_subset=hpd_95_all[selected_positions],
+                    n_total_points=n_total_points,
+                    was_sampled=was_sampled or n_loaded_total < n_total_points,
+                )
+            continue
 
         first_prior_name = next(iter(analysis_bundle["bias_summary"]), None)
         if first_prior_name is None:

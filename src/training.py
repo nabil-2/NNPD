@@ -31,7 +31,7 @@ except Exception:  # pragma: no cover - fallback for incompatible scipy/sklearn 
 
     def roc_auc_score(y_true, y_score):
         fpr, tpr, _ = roc_curve(y_true, y_score)
-        return float(np.trapezoid(tpr, fpr))
+        return float(np.trapz(tpr, fpr))
 
 
 def train(

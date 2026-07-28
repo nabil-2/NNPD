@@ -290,6 +290,99 @@ def _build_analysis_bundle(
     }
 
 
+def _build_summary_analysis_bundle(
+    *,
+    args: argparse.Namespace,
+    config: dict,
+    run_info_payload: dict,
+    inference_design,
+    priors,
+    all_parameters_in_range,
+    posterior_summary: dict,
+    averaged_bias_error: dict,
+    filename_analysis_bundle: Path,
+    filename_scatter_data: Path | None,
+    filename_run_info: Path | None,
+) -> dict:
+    prior_names = [prior.__name__ for prior in priors]
+    bundle_dir = filename_analysis_bundle.parent
+    artifact_files = {
+        "config_json": _relative_path(filename_analysis_bundle.parents[1] / "config.json", base_dir=bundle_dir),
+        "results_data_pkl": None,
+        "first_column_scatter_data_pkl": _relative_path(filename_scatter_data, base_dir=bundle_dir),
+        "run_info_json": _relative_path(filename_run_info, base_dir=bundle_dir),
+    }
+    raw_diagnostic_files = {
+        prior_name: _relative_path(path, base_dir=bundle_dir)
+        for prior_name, path in posterior_summary.get("raw_diagnostic_files", {}).items()
+        if path is not None
+    }
+
+    n_inferred_parameter_settings = int(inference_design.total_points)
+    n_repetitions_per_setting = int(inference_design.n_repititions_per_parameter)
+
+    return {
+        "schema_version": 2,
+        "run_metadata": {
+            **run_info_payload,
+            "effective_config": config,
+        },
+        "posterior_workload": {
+            "prior_names": prior_names,
+            "n_priors": int(len(prior_names)),
+            "inference_design": inference_design.mode,
+            "n_inferred_parameter_settings": n_inferred_parameter_settings,
+            "n_evaluated_parameter_settings": n_inferred_parameter_settings,
+            "conceptual_grid_size": int(inference_design.conceptual_grid_size),
+            "n_repetitions_per_setting": n_repetitions_per_setting,
+            "total_posterior_combinations_per_prior": (
+                n_inferred_parameter_settings * n_repetitions_per_setting
+            ),
+            "total_posterior_combinations_all_priors": (
+                n_inferred_parameter_settings * n_repetitions_per_setting * len(prior_names)
+            ),
+            "posterior_grid_shape": [len(axis) for axis in all_parameters_in_range],
+            "inference_grid_shape": [len(axis) for axis in inference_design.parameters_to_infer],
+            "compact_posterior_storage_written": False,
+            "raw_diagnostic_sample_points": int(len(posterior_summary.get("diagnostic_sample_indices", []))),
+            "posterior_qmc_samples_used": int(posterior_summary.get("safe_n_qmc", args.posterior_qmc_samples)),
+        },
+        "bias_summary": averaged_bias_error,
+        "hpd_summary": posterior_summary["hpd_summary"],
+        "artifacts": {
+            "relative_to": "bundle_dir",
+            "files": artifact_files,
+            "compact_store_dir": None,
+            "compact_store_files": {prior_name: [] for prior_name in prior_names},
+            "raw_diagnostic_files": raw_diagnostic_files,
+        },
+    }
+
+
+def _resolve_inference_and_output_modes(args: argparse.Namespace) -> tuple[str, str, int]:
+    conceptual_points = int(args.n_parameters_to_infer_per_dim) ** int(args.n_parameters)
+    if args.inference_design == "auto":
+        inference_design = (
+            "grid"
+            if conceptual_points <= int(args.max_cartesian_inference_points)
+            else "sobol"
+        )
+    else:
+        inference_design = args.inference_design
+
+    if args.posterior_output_mode == "auto":
+        output_mode = (
+            "full"
+            if inference_design == "grid"
+            and conceptual_points <= int(args.max_cartesian_inference_points)
+            else "summary"
+        )
+    else:
+        output_mode = args.posterior_output_mode
+
+    return inference_design, output_mode, conceptual_points
+
+
 def _action_dest(action: argparse.Action) -> str | None:
     if not getattr(action, "dest", None):
         return None
@@ -367,10 +460,12 @@ def run(args: argparse.Namespace) -> None:
     )
     from src.posterior import (
         _extract_hpd_level,
+        create_inference_design,
         create_inference_data,
         create_inference_parameters,
         get_first_column_scatter_data,
         get_posteriors_and_errors,
+        get_posteriors_and_errors_summary,
     )
     from src.priors import (
         build_priors,
@@ -394,6 +489,12 @@ def run(args: argparse.Namespace) -> None:
         raise ValueError("n_parameters must be at least 1.")
     if args.max_gpus < 1:
         raise ValueError("max_gpus must be at least 1.")
+    if args.n_inference_points < 1:
+        raise ValueError("n_inference_points must be at least 1.")
+    if args.max_cartesian_inference_points < 1:
+        raise ValueError("max_cartesian_inference_points must be at least 1.")
+    if args.raw_diagnostic_sample_points < 0:
+        raise ValueError("raw_diagnostic_sample_points must be non-negative.")
 
     plt.rc("axes", prop_cycle=plt.cycler(color=plt.get_cmap("Set1").colors))
 
@@ -430,7 +531,7 @@ def run(args: argparse.Namespace) -> None:
         )
 
     print(f"Using device: {device}")
-    print(f"Running toy_example_nD_tidy with {args.n_parameters} parameter dimensions")
+    print(f"Running toy_example_nD with {args.n_parameters} parameter dimensions")
     print(json.dumps(config, indent=2, sort_keys=True))
 
     priors, prior_samplers, param_min, param_max = build_priors(config, generator)
@@ -624,99 +725,175 @@ def run(args: argparse.Namespace) -> None:
         args.save,
     )
 
-    inference_data = create_inference_data(
-        parameters_min_max,
-        config,
-        generator,
-        n_parameters_to_infer_per_dim=args.n_parameters_to_infer_per_dim,
-        margin=args.inference_margin,
-        n_repititions_per_parameter=args.n_repetitions_per_parameter,
-        support_axes=alignment_support_axes,
+    resolved_inference_design, resolved_output_mode, conceptual_inference_points = (
+        _resolve_inference_and_output_modes(args)
     )
+    if resolved_output_mode == "full" and resolved_inference_design != "grid":
+        raise ValueError("Full posterior output is only supported with grid inference.")
+    if (
+        resolved_output_mode == "full"
+        and conceptual_inference_points > int(args.max_cartesian_inference_points)
+    ):
+        raise ValueError(
+            "Full posterior output would materialize "
+            f"{conceptual_inference_points} inference points; use summary output or raise "
+            "--max-cartesian-inference-points deliberately."
+        )
+    print(
+        "Posterior inference mode:",
+        {
+            "inference_design": resolved_inference_design,
+            "output_mode": resolved_output_mode,
+            "conceptual_grid_points": int(conceptual_inference_points),
+            "evaluated_points": (
+                int(conceptual_inference_points)
+                if resolved_inference_design == "grid"
+                else int(args.n_inference_points)
+            ),
+        },
+    )
+
     posterior_storage_dir = None
-    if filename_posteriors_data is not None:
+    posterior_summary_result = None
+    inference_design = None
+    if filename_posteriors_data is not None and resolved_output_mode == "full":
         posterior_storage_dir = filename_posteriors_data.parent / "compact_store"
-    all_posteriors, all_ratios, all_HPDs_posterior, all_HPDs_ratio = get_posteriors_and_errors(
-        inference_data,
-        all_parameters_in_range,
-        models=models,
-        priors=priors,
-        device=device,
-        config=config,
-        n_qmc_samples=args.posterior_qmc_samples,
-        eval_batch_size=args.posterior_eval_batch_size,
-        max_model_evals_per_prior=args.posterior_max_model_evals_per_prior,
-        qmc_seed=args.posterior_qmc_seed,
-        max_gpus=args.max_gpus,
-        show_progress=True,
-        storage_dir=posterior_storage_dir,
-    )
 
-    if filename_posteriors_data is not None:
-        with open(filename_posteriors_data, "wb") as handle:
-            pickle.dump(
-                {
-                    "all_HPDs_posterior": all_HPDs_posterior,
-                    "all_HPDs_ratio": all_HPDs_ratio,
-                    "inference_data": inference_data,
-                    "all_posteriors": all_posteriors,
-                    "all_ratios": all_ratios,
-                    "all_parameters_in_range": all_parameters_in_range,
-                    "n_repititions_per_parameter": args.n_repetitions_per_parameter,
-                    "n_dimensions": args.n_parameters,
-                    "posterior_grid_points": n_parameter_grid_points,
-                },
-                handle,
-            )
-        print(f"Saved posterior data to {filename_posteriors_data}")
+    if resolved_output_mode == "full":
+        inference_data = create_inference_data(
+            parameters_min_max,
+            config,
+            generator,
+            n_parameters_to_infer_per_dim=args.n_parameters_to_infer_per_dim,
+            margin=args.inference_margin,
+            n_repititions_per_parameter=args.n_repetitions_per_parameter,
+            support_axes=alignment_support_axes,
+        )
+        all_posteriors, all_ratios, all_HPDs_posterior, all_HPDs_ratio = get_posteriors_and_errors(
+            inference_data,
+            all_parameters_in_range,
+            models=models,
+            priors=priors,
+            device=device,
+            config=config,
+            n_qmc_samples=args.posterior_qmc_samples,
+            eval_batch_size=args.posterior_eval_batch_size,
+            max_model_evals_per_prior=args.posterior_max_model_evals_per_prior,
+            qmc_seed=args.posterior_qmc_seed,
+            max_gpus=args.max_gpus,
+            show_progress=True,
+            storage_dir=posterior_storage_dir,
+        )
 
-    fig, _ = plot_errorbars(
-        all_HPDs_posterior,
-        inference_data,
-        all_posteriors,
-        all_parameters_in_range,
-        show_annotations=False,
-        filename=filename_errorbars,
-    )
-    close_figure(fig, plt)
-    fig, _ = plot_errorbars(
-        all_HPDs_ratio,
-        inference_data,
-        all_ratios,
-        all_parameters_in_range,
-        show_annotations=False,
-        filename=filename_errorbars_ratios,
-    )
-    close_figure(fig, plt)
+        if filename_posteriors_data is not None:
+            with open(filename_posteriors_data, "wb") as handle:
+                pickle.dump(
+                    {
+                        "all_HPDs_posterior": all_HPDs_posterior,
+                        "all_HPDs_ratio": all_HPDs_ratio,
+                        "inference_data": inference_data,
+                        "all_posteriors": all_posteriors,
+                        "all_ratios": all_ratios,
+                        "all_parameters_in_range": all_parameters_in_range,
+                        "n_repititions_per_parameter": args.n_repetitions_per_parameter,
+                        "n_dimensions": args.n_parameters,
+                        "posterior_grid_points": n_parameter_grid_points,
+                    },
+                    handle,
+                )
+            print(f"Saved posterior data to {filename_posteriors_data}")
+    else:
+        inference_design = create_inference_design(
+            parameters_min_max,
+            config,
+            generator,
+            design=resolved_inference_design,
+            n_inference_points=args.n_inference_points,
+            n_parameters_to_infer_per_dim=args.n_parameters_to_infer_per_dim,
+            margin=args.inference_margin,
+            n_repititions_per_parameter=args.n_repetitions_per_parameter,
+            support_axes=alignment_support_axes,
+            seed=args.posterior_qmc_seed,
+        )
+        diagnostic_dir = None
+        if filename_analysis_bundle is not None:
+            diagnostic_dir = filename_analysis_bundle.parent / "raw_diagnostics"
+        posterior_summary_result = get_posteriors_and_errors_summary(
+            inference_design,
+            all_parameters_in_range,
+            models=models,
+            priors=priors,
+            device=device,
+            generator=generator,
+            config=config,
+            n_qmc_samples=args.posterior_qmc_samples,
+            eval_batch_size=args.posterior_eval_batch_size,
+            max_model_evals_per_prior=args.posterior_max_model_evals_per_prior,
+            qmc_seed=args.posterior_qmc_seed,
+            max_gpus=args.max_gpus,
+            show_progress=True,
+            diagnostic_dir=diagnostic_dir,
+            raw_diagnostic_sample_points=args.raw_diagnostic_sample_points,
+        )
+        all_posteriors = posterior_summary_result["all_posteriors"]
+        all_ratios = posterior_summary_result["all_ratios"]
+        all_HPDs_posterior = posterior_summary_result["all_hpds_posterior"]
+        all_HPDs_ratio = posterior_summary_result["all_hpds_ratio"]
+        inference_data = posterior_summary_result["diagnostic_inference_data"]
+        print("Summary-mode posterior data saved as bounded raw diagnostics; skipping results_data.pkl.")
 
-    fig, _ = plot_error_and_hld_width(
-        all_HPDs_posterior,
-        inference_data,
-        all_posteriors,
-        all_parameters_in_range,
-        filename=filename_error_and_hld_width,
-    )
-    if filename_error_and_hld_width is not None:
-        _enforce_markers(fig, filename=filename_error_and_hld_width)
-    close_figure(fig, plt)
+    diagnostic_point_count = int(np.asarray(inference_data[1]).shape[0])
+    if diagnostic_point_count > 0:
+        fig, _ = plot_errorbars(
+            all_HPDs_posterior,
+            inference_data,
+            all_posteriors,
+            all_parameters_in_range,
+            show_annotations=False,
+            filename=filename_errorbars,
+        )
+        close_figure(fig, plt)
+        fig, _ = plot_errorbars(
+            all_HPDs_ratio,
+            inference_data,
+            all_ratios,
+            all_parameters_in_range,
+            show_annotations=False,
+            filename=filename_errorbars_ratios,
+        )
+        close_figure(fig, plt)
 
-    fig, _ = plot_error_and_hld_width(
-        all_HPDs_ratio,
-        inference_data,
-        all_ratios,
-        all_parameters_in_range,
-        filename=filename_error_and_hld_width_ratios,
-    )
-    if filename_error_and_hld_width_ratios is not None:
-        _enforce_markers(fig, filename=filename_error_and_hld_width_ratios)
-    close_figure(fig, plt)
+        fig, _ = plot_error_and_hld_width(
+            all_HPDs_posterior,
+            inference_data,
+            all_posteriors,
+            all_parameters_in_range,
+            filename=filename_error_and_hld_width,
+        )
+        if filename_error_and_hld_width is not None:
+            _enforce_markers(fig, filename=filename_error_and_hld_width)
+        close_figure(fig, plt)
 
-    averaged_bias_error = get_first_column_scatter_data(
-        inference_data,
-        all_ratios,
-        all_parameters_in_range,
-        all_HPDs_ratio,
-    )
+        fig, _ = plot_error_and_hld_width(
+            all_HPDs_ratio,
+            inference_data,
+            all_ratios,
+            all_parameters_in_range,
+            filename=filename_error_and_hld_width_ratios,
+        )
+        if filename_error_and_hld_width_ratios is not None:
+            _enforce_markers(fig, filename=filename_error_and_hld_width_ratios)
+        close_figure(fig, plt)
+
+    if resolved_output_mode == "full":
+        averaged_bias_error = get_first_column_scatter_data(
+            inference_data,
+            all_ratios,
+            all_parameters_in_range,
+            all_HPDs_ratio,
+        )
+    else:
+        averaged_bias_error = posterior_summary_result["bias_summary"]
     if filename_scatter_data is not None:
         with open(filename_scatter_data, "wb") as handle:
             pickle.dump(averaged_bias_error, handle)
@@ -922,6 +1099,12 @@ def run(args: argparse.Namespace) -> None:
         "n_parameters": args.n_parameters,
         "posterior_grid_points": n_parameter_grid_points,
         "n_parameters_to_infer_per_dim": args.n_parameters_to_infer_per_dim,
+        "inference_design": resolved_inference_design,
+        "posterior_output_mode": resolved_output_mode,
+        "conceptual_inference_points": int(conceptual_inference_points),
+        "n_inference_points": int(args.n_inference_points),
+        "max_cartesian_inference_points": int(args.max_cartesian_inference_points),
+        "raw_diagnostic_sample_points": int(args.raw_diagnostic_sample_points),
         "n_repetitions_per_parameter": args.n_repetitions_per_parameter,
         "verification_pair_count": args.verification_pair_count,
         "verification_model_samples_per_endpoint": args.verification_model_samples_per_endpoint,
@@ -933,25 +1116,40 @@ def run(args: argparse.Namespace) -> None:
     save_json(run_info_payload, filename_run_info)
 
     if filename_analysis_bundle is not None:
-        analysis_bundle = _build_analysis_bundle(
-            args=args,
-            config=config,
-            run_info_payload=run_info_payload,
-            inference_data=inference_data,
-            priors=priors,
-            all_parameters_in_range=all_parameters_in_range,
-            all_posteriors=all_posteriors,
-            all_ratios=all_ratios,
-            all_hpds_posterior=all_HPDs_posterior,
-            all_hpds_ratio=all_HPDs_ratio,
-            averaged_bias_error=averaged_bias_error,
-            posterior_storage_dir=posterior_storage_dir,
-            filename_analysis_bundle=filename_analysis_bundle,
-            filename_posteriors_data=filename_posteriors_data,
-            filename_scatter_data=filename_scatter_data,
-            filename_run_info=filename_run_info,
-            extract_hpd_level=_extract_hpd_level,
-        )
+        if resolved_output_mode == "full":
+            analysis_bundle = _build_analysis_bundle(
+                args=args,
+                config=config,
+                run_info_payload=run_info_payload,
+                inference_data=inference_data,
+                priors=priors,
+                all_parameters_in_range=all_parameters_in_range,
+                all_posteriors=all_posteriors,
+                all_ratios=all_ratios,
+                all_hpds_posterior=all_HPDs_posterior,
+                all_hpds_ratio=all_HPDs_ratio,
+                averaged_bias_error=averaged_bias_error,
+                posterior_storage_dir=posterior_storage_dir,
+                filename_analysis_bundle=filename_analysis_bundle,
+                filename_posteriors_data=filename_posteriors_data,
+                filename_scatter_data=filename_scatter_data,
+                filename_run_info=filename_run_info,
+                extract_hpd_level=_extract_hpd_level,
+            )
+        else:
+            analysis_bundle = _build_summary_analysis_bundle(
+                args=args,
+                config=config,
+                run_info_payload=run_info_payload,
+                inference_design=inference_design,
+                priors=priors,
+                all_parameters_in_range=all_parameters_in_range,
+                posterior_summary=posterior_summary_result,
+                averaged_bias_error=averaged_bias_error,
+                filename_analysis_bundle=filename_analysis_bundle,
+                filename_scatter_data=filename_scatter_data,
+                filename_run_info=filename_run_info,
+            )
         save_json(_json_safe_value(analysis_bundle), filename_analysis_bundle)
         print(f"Saved analysis bundle to {filename_analysis_bundle}")
 
@@ -963,7 +1161,7 @@ def run(args: argparse.Namespace) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Run the toy_example_nD_tidy notebook logic as a batch-safe Python script. "
+            "Run the toy_example_nD notebook logic as a batch-safe Python script. "
             "The positional argument sets the number of parameter dimensions."
         )
     )
@@ -998,6 +1196,36 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--vegas-neval", type=int, default=10_000)
     parser.add_argument("--posterior-grid-points", type=int, default=200)
     parser.add_argument("--n-parameters-to-infer-per-dim", type=int, default=25)
+    parser.add_argument(
+        "--inference-design",
+        choices=("auto", "grid", "sobol"),
+        default="auto",
+        help="Inference point design. Auto uses exact grids while they are small and Sobol otherwise.",
+    )
+    parser.add_argument(
+        "--n-inference-points",
+        type=int,
+        default=65_536,
+        help="Number of Sobol inference points evaluated in bounded summary mode.",
+    )
+    parser.add_argument(
+        "--max-cartesian-inference-points",
+        type=int,
+        default=1_000_000,
+        help="Maximum exact Cartesian inference settings before auto switches to Sobol summary mode.",
+    )
+    parser.add_argument(
+        "--posterior-output-mode",
+        choices=("auto", "summary", "full"),
+        default="auto",
+        help="Posterior artifact mode. Summary stores aggregates and bounded raw diagnostics.",
+    )
+    parser.add_argument(
+        "--raw-diagnostic-sample-points",
+        type=int,
+        default=4096,
+        help="Maximum number of evaluated posterior points retained as raw diagnostics in summary mode.",
+    )
     parser.add_argument(
         "--inference-margin",
         type=float,

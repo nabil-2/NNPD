@@ -17,7 +17,7 @@ generator = np.random.default_rng(0)
 
 def normalize(function, lower, upper):
     x = np.linspace(lower, upper, 1000)
-    integral = np.trapezoid(function(x), x)
+    integral = np.trapz(function(x), x)
 
     def result_fct(z):
         return function(z) / integral

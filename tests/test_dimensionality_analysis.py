@@ -234,6 +234,84 @@ class DimensionalityAnalysisLoaderTests(unittest.TestCase):
             self.assertEqual(raw_payload["raw_metadata_df"]["prior"].tolist(), ["grid"])
             self.assertFalse(bool(raw_payload["raw_metadata_df"].iloc[0]["sampled"]))
 
+    def test_raw_loader_reads_schema_v2_diagnostic_npz(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            figs_root = Path(tmp_dir) / "figs"
+            config_dir = figs_root / "config_v2_fixture"
+            diagnostics_dir = config_dir / "posterior_errors" / "raw_diagnostics"
+            diagnostics_dir.mkdir(parents=True)
+
+            (config_dir / "config.json").write_text(json.dumps({"data": {"n_parameters": 3}}))
+            sample_index = np.array([0, 5, 9], dtype=np.int64)
+            true_params = np.array(
+                [
+                    [1.0, 2.0, 3.0],
+                    [2.0, 3.0, 4.0],
+                    [3.0, 4.0, 5.0],
+                ],
+                dtype=np.float32,
+            )
+            ratio_map = true_params + 0.25
+            hpd_68 = np.stack([true_params - 0.1, true_params + 0.1], axis=2).astype(np.float32)
+            hpd_95 = np.stack([true_params - 0.2, true_params + 0.2], axis=2).astype(np.float32)
+            np.savez_compressed(
+                diagnostics_dir / "uniform_raw_diagnostic_sample.npz",
+                sample_index=sample_index,
+                true_params=true_params,
+                posterior_map=ratio_map,
+                ratio_map=ratio_map,
+                posterior_hpd_68=hpd_68,
+                posterior_hpd_95=hpd_95,
+                ratio_hpd_68=hpd_68,
+                ratio_hpd_95=hpd_95,
+            )
+
+            analysis_bundle = {
+                "schema_version": 2,
+                "posterior_workload": {
+                    "prior_names": ["uniform"],
+                    "n_inferred_parameter_settings": 10,
+                    "n_evaluated_parameter_settings": 10,
+                    "n_repetitions_per_setting": 1,
+                    "total_posterior_combinations_per_prior": 10,
+                    "total_posterior_combinations_all_priors": 10,
+                    "posterior_grid_shape": [9, 9, 9],
+                    "compact_posterior_storage_written": False,
+                },
+                "bias_summary": {
+                    "uniform": {
+                        "x": [1.0, 2.0],
+                        "avg_bias": [0.1, 0.2],
+                        "avg_width_68": [0.2, 0.2],
+                    }
+                },
+                "hpd_summary": {"ratio": {"uniform": {}}},
+                "artifacts": {
+                    "raw_diagnostic_files": {
+                        "uniform": "raw_diagnostics/uniform_raw_diagnostic_sample.npz"
+                    },
+                    "compact_store_files": {"uniform": []},
+                },
+            }
+            (config_dir / "posterior_errors" / "analysis_bundle.json").write_text(json.dumps(analysis_bundle))
+
+            raw_payload = load_raw_compact_store(
+                figs_root,
+                ["config_v2_fixture"],
+                ["uniform"],
+                max_points_per_config=2,
+            )
+
+            metadata = raw_payload["raw_metadata_df"].iloc[0]
+            self.assertEqual(int(metadata["n_total_points"]), 10)
+            self.assertEqual(int(metadata["n_loaded_points"]), 2)
+            self.assertTrue(bool(metadata["sampled"]))
+            self.assertEqual(sorted(raw_payload["raw_map_df"]["dim_index"].unique().tolist()), [0, 1, 2])
+            self.assertEqual(
+                sorted(raw_payload["raw_intervals_df"]["interval_level"].unique().tolist()),
+                ["68", "95"],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,6 +32,7 @@ from src.posterior import (
     _extract_map_array,
     _normalize_log_weights,
     _weighted_hpd_from_samples,
+    create_inference_design,
     create_inference_data,
     get_first_column_scatter_data,
     get_posteriors_and_errors,
@@ -51,7 +52,7 @@ from toy_example_nD import build_config, build_parser
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPT_PATH = REPO_ROOT / "toy_example_nD_tidy.py"
+SCRIPT_PATH = REPO_ROOT / "toy_example_nD.py"
 SWEEP_SCRIPT_PATH = REPO_ROOT / "scripts" / "submit_toy_example_nd_sweep.sh"
 
 
@@ -288,10 +289,85 @@ class SamplingTests(unittest.TestCase):
             self.assertTrue(np.all(samples <= param_max))
 
             prior = prior_lookup[prior_name]
-            integral = np.trapezoid(np.asarray(prior(x_eval), dtype=np.float64), xs)
+            integral = np.trapz(np.asarray(prior(x_eval), dtype=np.float64), xs)
             self.assertAlmostEqual(float(integral), 1.0, places=3)
             self.assertEqual(float(prior(np.array([param_min - 1.0], dtype=np.float64))), 0.0)
             self.assertEqual(float(prior(np.array([param_max + 1.0], dtype=np.float64))), 0.0)
+
+
+class InferenceDesignTests(unittest.TestCase):
+    def test_grid_design_batches_match_legacy_meshgrid_order(self):
+        config = _small_config(2)
+        generator = np.random.default_rng(123)
+        priors, _, _, _ = build_priors(config, generator)
+        support_axes = get_alignment_support_axes(priors)
+        parameters_to_infer = [
+            np.asarray([1.0, 2.0], dtype=np.float32),
+            np.asarray([3.0, 4.0, 5.0], dtype=np.float32),
+        ]
+
+        design = create_inference_design(
+            config["data"]["parameter_range"],
+            config,
+            generator,
+            design="grid",
+            parameters_to_infer=parameters_to_infer,
+            n_repititions_per_parameter=1,
+            support_axes=support_axes,
+        )
+        batches = list(design.iter_batches(2, np.random.default_rng(99)))
+        actual_params = np.vstack([batch[1] for batch in batches])
+
+        legacy = create_inference_data(
+            config["data"]["parameter_range"],
+            config,
+            np.random.default_rng(99),
+            parameters_to_infer=parameters_to_infer,
+            n_repititions_per_parameter=1,
+        )
+        np.testing.assert_allclose(actual_params, legacy[1], atol=0.0)
+        self.assertEqual([batch[0].tolist() for batch in batches], [[0, 1], [2, 3], [4, 5]])
+
+    def test_sobol_design_is_reproducible_bounded_and_lattice_snapped(self):
+        config = _small_config(3)
+        generator = np.random.default_rng(321)
+        priors, _, _, _ = build_priors(config, generator)
+        support_axes = get_alignment_support_axes(priors)
+
+        design_a = create_inference_design(
+            config["data"]["parameter_range"],
+            config,
+            generator,
+            design="sobol",
+            n_inference_points=16,
+            n_parameters_to_infer_per_dim=3,
+            margin=0.1,
+            n_repititions_per_parameter=2,
+            support_axes=support_axes,
+            seed=17,
+        )
+        design_b = create_inference_design(
+            config["data"]["parameter_range"],
+            config,
+            np.random.default_rng(999),
+            design="sobol",
+            n_inference_points=16,
+            n_parameters_to_infer_per_dim=3,
+            margin=0.1,
+            n_repititions_per_parameter=2,
+            support_axes=support_axes,
+            seed=17,
+        )
+
+        params_a = np.vstack([batch[1] for batch in design_a.iter_batches(5, np.random.default_rng(1))])
+        params_b = np.vstack([batch[1] for batch in design_b.iter_batches(7, np.random.default_rng(2))])
+
+        self.assertEqual(params_a.shape, (16, 3))
+        np.testing.assert_allclose(params_a, params_b, atol=0.0)
+        self.assertTrue(np.all(params_a >= 1.0 - 1e-6))
+        self.assertTrue(np.all(params_a <= 9.0 + 1e-6))
+        for dim, axis in enumerate(support_axes):
+            self.assertTrue(np.all(np.isin(params_a[:, dim], axis)))
 
 
 class PosteriorTests(unittest.TestCase):
@@ -1287,6 +1363,93 @@ class ScriptSmokeTests(unittest.TestCase):
             config_dir = posterior_errors_dir.parent
             self.assertTrue((config_dir / "models/models_0/model_grid_prior.pth").exists())
             self.assertTrue((config_dir / "training/training_0/training_grid_prior.pdf").exists())
+
+    def test_high_dimensional_auto_uses_summary_outputs(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_root = Path(tmpdir) / "outputs"
+            self._run_script(
+                7,
+                "--device",
+                "cpu",
+                "--max-gpus",
+                1,
+                "--output-root",
+                output_root,
+                "--n-train",
+                32,
+                "--n-test",
+                8,
+                "--n-validation",
+                8,
+                "--n-epochs",
+                1,
+                "--n-hidden-layers",
+                1,
+                "--n-units",
+                8,
+                "--batch-size",
+                8,
+                "--prior-histogram-samples",
+                64,
+                "--prior-histogram-bins",
+                8,
+                "--posterior-grid-points",
+                9,
+                "--n-parameters-to-infer-per-dim",
+                3,
+                "--max-cartesian-inference-points",
+                100,
+                "--n-inference-points",
+                4,
+                "--raw-diagnostic-sample-points",
+                3,
+                "--n-repetitions-per-parameter",
+                1,
+                "--posterior-qmc-samples",
+                1024,
+                "--posterior-eval-batch-size",
+                512,
+                "--n-ratio-samples",
+                16,
+                "--n-ratio-test-parameters",
+                2,
+                "--n-test-data",
+                32,
+                "--n-bins",
+                8,
+                "--verification-pair-count",
+                2,
+                "--verification-model-samples-per-endpoint",
+                4,
+                "--verification-reweight-source-samples",
+                8,
+                "--verification-reweight-target-samples",
+                8,
+                "--verification-swd-projections",
+                2,
+            )
+
+            analysis_bundle_path = next(output_root.glob("config_*/posterior_errors/analysis_bundle.json"))
+            posterior_errors_dir = analysis_bundle_path.parent
+            bundle = json.loads(analysis_bundle_path.read_text())
+
+            self.assertEqual(bundle["schema_version"], 2)
+            self.assertEqual(bundle["posterior_workload"]["inference_design"], "sobol")
+            self.assertEqual(bundle["posterior_workload"]["n_evaluated_parameter_settings"], 4)
+            self.assertEqual(bundle["posterior_workload"]["raw_diagnostic_sample_points"], 3)
+            self.assertFalse(bundle["posterior_workload"]["compact_posterior_storage_written"])
+            self.assertFalse((posterior_errors_dir / "results_data.pkl").exists())
+            self.assertFalse((posterior_errors_dir / "compact_store").exists())
+
+            raw_files = bundle["artifacts"]["raw_diagnostic_files"]
+            self.assertEqual(sorted(raw_files), ["exponential", "grid", "normal", "uniform"])
+            for relative_path in raw_files.values():
+                raw_path = posterior_errors_dir / relative_path
+                self.assertTrue(raw_path.exists())
+                with np.load(raw_path) as raw:
+                    self.assertEqual(raw["true_params"].shape, (3, 7))
+                    self.assertEqual(raw["ratio_map"].shape, (3, 7))
+                    self.assertEqual(raw["ratio_hpd_68"].shape, (3, 7, 2))
 
     @unittest.skipUnless(torch.cuda.is_available() and torch.cuda.device_count() >= 2, "requires at least 2 GPUs")
     def test_cuda_two_gpu_no_save_smoke(self):

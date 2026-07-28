@@ -48,8 +48,11 @@ def plot_prior_contours(priors, parameter_range, n_parameters, n_points=200, fix
             )
         else:
             z = prior(grid)
-            cf = axes[i].contourf(x, y, z, levels=30, cmap="viridis")
-            axes[i].contour(x, y, z, levels=10, colors="k", linewidths=0.5, alpha=0.4)
+            try:
+                cf = axes[i].contourf(x, y, z, levels=30, cmap="viridis")
+                axes[i].contour(x, y, z, levels=10, colors="k", linewidths=0.5, alpha=0.4)
+            except ImportError:
+                cf = axes[i].pcolormesh(x, y, z, shading="auto", cmap="viridis")
         axes[i].set_title(prior.__name__)
         axes[i].set_xlabel(r"$\theta_0$")
         axes[i].set_ylabel(r"$\theta_1$")

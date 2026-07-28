@@ -1,0 +1,21 @@
+{
+  "conceptual_inference_points": 152587890625,
+  "device": "cuda",
+  "inference_design": "sobol",
+  "max_cartesian_inference_points": 1000000,
+  "max_gpus": 4,
+  "n_inference_points": 65536,
+  "n_parameters": 8,
+  "n_parameters_to_infer_per_dim": 25,
+  "n_repetitions_per_parameter": 15,
+  "output_root": "figs",
+  "posterior_grid_points": 200,
+  "posterior_output_mode": "summary",
+  "raw_diagnostic_sample_points": 4096,
+  "seed": 0,
+  "verification_model_samples_per_endpoint": 512,
+  "verification_pair_count": 256,
+  "verification_reweight_source_samples": 2048,
+  "verification_reweight_target_samples": 2048,
+  "verification_swd_projections": 32
+}

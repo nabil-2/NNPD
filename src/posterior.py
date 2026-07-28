@@ -4,6 +4,7 @@ import concurrent.futures
 import math
 import multiprocessing as mp
 import queue as queue_module
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -286,7 +287,7 @@ def _to_1d_torch_grid(x, device, dtype):
 def integrate_nD(fct, x_range):
     result = fct
     for i in range(len(x_range) - 1, -1, -1):
-        result = np.trapezoid(result, x_range[i], axis=i)
+        result = np.trapz(result, x_range[i], axis=i)
     return result
 
 
@@ -522,6 +523,190 @@ def create_inference_data(
     ).reshape(-1, int(n_repititions_per_parameter), n_dimensions)
 
     return parameters_to_infer, parameter_combinations, sampled_data
+
+
+def _parameter_combinations_from_flat_indices(parameters_to_infer, flat_indices):
+    axes = [np.asarray(axis, dtype=np.float32).ravel() for axis in parameters_to_infer]
+    if not axes:
+        raise ValueError("parameters_to_infer must contain at least one axis.")
+    flat_indices = np.asarray(flat_indices, dtype=np.int64).ravel()
+    coordinates = np.unravel_index(flat_indices, tuple(len(axis) for axis in axes))
+    return np.stack([axis[np.asarray(coord, dtype=np.int64)] for axis, coord in zip(axes, coordinates)], axis=1)
+
+
+def _snap_batch_to_support_axes(points, support_axes, margin_bounds=None):
+    points = np.asarray(points, dtype=np.float32)
+    snapped = np.empty_like(points, dtype=np.float32)
+
+    for dim, axis in enumerate(support_axes):
+        axis = np.asarray(axis, dtype=np.float32).ravel()
+        if axis.size == 0:
+            raise ValueError("Each support axis must contain at least one point.")
+        eligible = axis
+        if margin_bounds is not None:
+            low, high = margin_bounds
+            eligible = axis[(axis >= low - 1e-6) & (axis <= high + 1e-6)]
+            if eligible.size == 0:
+                raise ValueError("No support-axis points remain inside the inference margin.")
+        idx = np.abs(points[:, dim, None] - eligible[None, :]).argmin(axis=1)
+        snapped[:, dim] = eligible[idx]
+
+    return snapped
+
+
+@dataclass(frozen=True)
+class InferenceDesign:
+    mode: str
+    parameters_min_max: tuple[float, float]
+    config: dict
+    parameters_to_infer: tuple[np.ndarray, ...]
+    n_repititions_per_parameter: int
+    total_points: int
+    conceptual_grid_size: int
+    margin: float
+    seed: int = 0
+    support_axes: tuple[np.ndarray, ...] | None = None
+
+    @property
+    def n_dimensions(self):
+        return int(self.config["data"]["n_parameters"])
+
+    @property
+    def grid_shape(self):
+        return tuple(int(len(axis)) for axis in self.parameters_to_infer)
+
+    def iter_batches(self, batch_size, generator):
+        batch_size = max(1, int(batch_size))
+        if self.mode == "grid":
+            for start in range(0, self.total_points, batch_size):
+                end = min(start + batch_size, self.total_points)
+                flat_indices = np.arange(start, end, dtype=np.int64)
+                true_params = _parameter_combinations_from_flat_indices(
+                    self.parameters_to_infer,
+                    flat_indices,
+                ).astype(np.float32)
+                repeated_parameters = np.repeat(
+                    true_params[:, None, :],
+                    int(self.n_repititions_per_parameter),
+                    axis=1,
+                )
+                sampled_data = draw_data(
+                    repeated_parameters.reshape(-1, self.n_dimensions),
+                    self.config,
+                    generator,
+                ).reshape(-1, int(self.n_repititions_per_parameter), self.n_dimensions)
+                yield flat_indices, true_params, sampled_data
+            return
+
+        if self.mode != "sobol":
+            raise ValueError(f"Unsupported inference design mode: {self.mode!r}.")
+
+        parameter_min, parameter_max = self.parameters_min_max
+        parameter_range = parameter_max - parameter_min
+        low = parameter_min + parameter_range * self.margin
+        high = parameter_max - parameter_range * self.margin
+        lows = torch.full((self.n_dimensions,), float(low), dtype=torch.float32)
+        widths = torch.full((self.n_dimensions,), float(high - low), dtype=torch.float32)
+        sobol = torch.quasirandom.SobolEngine(
+            dimension=self.n_dimensions,
+            scramble=True,
+            seed=int(self.seed),
+        )
+
+        done = 0
+        while done < self.total_points:
+            n_batch = min(batch_size, self.total_points - done)
+            flat_indices = np.arange(done, done + n_batch, dtype=np.int64)
+            u = sobol.draw(n_batch).to(dtype=torch.float32)
+            true_params = (lows[None, :] + u * widths[None, :]).cpu().numpy().astype(np.float32)
+            if self.support_axes is not None:
+                true_params = _snap_batch_to_support_axes(
+                    true_params,
+                    self.support_axes,
+                    margin_bounds=(low, high),
+                )
+
+            repeated_parameters = np.repeat(
+                true_params[:, None, :],
+                int(self.n_repititions_per_parameter),
+                axis=1,
+            )
+            sampled_data = draw_data(
+                repeated_parameters.reshape(-1, self.n_dimensions),
+                self.config,
+                generator,
+            ).reshape(-1, int(self.n_repititions_per_parameter), self.n_dimensions)
+            yield flat_indices, true_params, sampled_data
+            done += n_batch
+
+
+def create_inference_design(
+    parameters_min_max,
+    config,
+    generator,
+    *,
+    design="sobol",
+    n_inference_points=65536,
+    n_parameters_to_infer_per_dim=5,
+    margin=1 / 4,
+    data_is_random=False,
+    n_repititions_per_parameter=1,
+    parameters_to_infer=None,
+    support_axes=None,
+    seed=0,
+):
+    n_dimensions = int(config["data"]["n_parameters"])
+    design = str(design)
+    if design not in {"grid", "sobol"}:
+        raise ValueError("design must be one of {'grid', 'sobol'}.")
+
+    if parameters_to_infer is None:
+        if support_axes is not None and len(support_axes) != n_dimensions:
+            raise ValueError(
+                f"Expected support_axes for {n_dimensions} dimensions, got {len(support_axes)}."
+            )
+        parameters_to_infer = []
+        for dim in range(n_dimensions):
+            support_axis = None if support_axes is None else support_axes[dim]
+            parameters_to_infer.append(
+                create_inference_parameters(
+                    n_parameters_to_infer_per_dim,
+                    parameters_min_max,
+                    generator,
+                    margin,
+                    data_is_random,
+                    support_axis=support_axis,
+                )
+            )
+
+    parameters_to_infer = tuple(np.asarray(axis, dtype=np.float32).ravel() for axis in parameters_to_infer)
+    conceptual_grid_size = int(math.prod(len(axis) for axis in parameters_to_infer))
+    if conceptual_grid_size <= 0:
+        raise ValueError("Inference grid must contain at least one point.")
+
+    if design == "grid":
+        total_points = conceptual_grid_size
+    else:
+        total_points = int(n_inference_points)
+        if total_points <= 0:
+            raise ValueError("n_inference_points must be positive for Sobol inference.")
+
+    support_axes_tuple = None
+    if support_axes is not None:
+        support_axes_tuple = tuple(np.asarray(axis, dtype=np.float32).copy() for axis in support_axes)
+
+    return InferenceDesign(
+        mode=design,
+        parameters_min_max=tuple(float(v) for v in parameters_min_max),
+        config=config,
+        parameters_to_infer=parameters_to_infer,
+        n_repititions_per_parameter=int(n_repititions_per_parameter),
+        total_points=int(total_points),
+        conceptual_grid_size=int(conceptual_grid_size),
+        margin=float(margin),
+        seed=int(seed),
+        support_axes=support_axes_tuple,
+    )
 
 
 def area_above_k(k, x_range, posterior_normalized, integration_device=None):
@@ -764,6 +949,470 @@ def _evaluate_log_ratio_sums(model, sampled_batch, theta_samples_t, eval_batch_s
                 log_ratio_sum[:, theta_start:theta_end] += combo_accum
 
     return log_ratio_sum
+
+
+def _arrays_from_log_ratio_sums(theta_samples, log_ratio_sum_np, log_post_sum_np):
+    n_rows = int(log_ratio_sum_np.shape[0])
+    n_dimensions = int(theta_samples.shape[1])
+
+    posterior_map = np.empty((n_rows, n_dimensions), dtype=np.float32)
+    ratio_map = np.empty((n_rows, n_dimensions), dtype=np.float32)
+    posterior_hpd_68 = np.empty((n_rows, n_dimensions, 2), dtype=np.float32)
+    posterior_hpd_95 = np.empty((n_rows, n_dimensions, 2), dtype=np.float32)
+    posterior_hpd_68_combined = np.empty((n_rows, 2), dtype=np.float32)
+    posterior_hpd_95_combined = np.empty((n_rows, 2), dtype=np.float32)
+    ratio_hpd_68 = np.empty((n_rows, n_dimensions, 2), dtype=np.float32)
+    ratio_hpd_95 = np.empty((n_rows, n_dimensions, 2), dtype=np.float32)
+    ratio_hpd_68_combined = np.empty((n_rows, 2), dtype=np.float32)
+    ratio_hpd_95_combined = np.empty((n_rows, 2), dtype=np.float32)
+
+    for row in range(n_rows):
+        post_w = _normalize_log_weights(log_post_sum_np[row])
+        ratio_w = _normalize_log_weights(log_ratio_sum_np[row])
+
+        posterior_map[row, :] = theta_samples[int(np.argmax(log_post_sum_np[row]))]
+        ratio_map[row, :] = theta_samples[int(np.argmax(log_ratio_sum_np[row]))]
+
+        hpd_68_posterior = _weighted_hpd_from_samples(theta_samples, post_w, alpha=0.32)
+        hpd_95_posterior = _weighted_hpd_from_samples(theta_samples, post_w, alpha=0.05)
+        posterior_hpd_68[row, :, :] = np.asarray(hpd_68_posterior[0], dtype=np.float32)
+        posterior_hpd_68_combined[row, :] = np.asarray(hpd_68_posterior[1], dtype=np.float32)
+        posterior_hpd_95[row, :, :] = np.asarray(hpd_95_posterior[0], dtype=np.float32)
+        posterior_hpd_95_combined[row, :] = np.asarray(hpd_95_posterior[1], dtype=np.float32)
+
+        hpd_68_ratio = _weighted_hpd_from_samples(theta_samples, ratio_w, alpha=0.32)
+        hpd_95_ratio = _weighted_hpd_from_samples(theta_samples, ratio_w, alpha=0.05)
+        ratio_hpd_68[row, :, :] = np.asarray(hpd_68_ratio[0], dtype=np.float32)
+        ratio_hpd_68_combined[row, :] = np.asarray(hpd_68_ratio[1], dtype=np.float32)
+        ratio_hpd_95[row, :, :] = np.asarray(hpd_95_ratio[0], dtype=np.float32)
+        ratio_hpd_95_combined[row, :] = np.asarray(hpd_95_ratio[1], dtype=np.float32)
+
+    return {
+        "posterior_map": posterior_map,
+        "ratio_map": ratio_map,
+        "posterior_hpd_68": posterior_hpd_68,
+        "posterior_hpd_95": posterior_hpd_95,
+        "posterior_hpd_68_combined": posterior_hpd_68_combined,
+        "posterior_hpd_95_combined": posterior_hpd_95_combined,
+        "ratio_hpd_68": ratio_hpd_68,
+        "ratio_hpd_95": ratio_hpd_95,
+        "ratio_hpd_68_combined": ratio_hpd_68_combined,
+        "ratio_hpd_95_combined": ratio_hpd_95_combined,
+    }
+
+
+class _StreamingPriorSummary:
+    def __init__(self, n_dims, parameter_range, curve_bins=64):
+        self.n_dims = int(n_dims)
+        self.parameter_range = tuple(float(v) for v in parameter_range)
+        self.curve_bins = max(1, int(curve_bins))
+        self.count = 0
+        self._curve_count = np.zeros(self.curve_bins, dtype=np.float64)
+        self._curve_bias_sum = np.zeros(self.curve_bins, dtype=np.float64)
+        self._curve_width68_sum = np.zeros(self.curve_bins, dtype=np.float64)
+        self._curve_width95_sum = np.zeros(self.curve_bins, dtype=np.float64)
+        self._hpd = {
+            kind: {
+                level: {
+                    "coverage_sum": np.zeros(self.n_dims, dtype=np.float64),
+                    "width_sum": np.zeros(self.n_dims, dtype=np.float64),
+                    "width_values": [],
+                    "combined_width_values": [],
+                }
+                for level in ("68", "95")
+            }
+            for kind in ("posterior", "ratio")
+        }
+
+    def _bin_indices(self, values):
+        low, high = self.parameter_range
+        values = np.asarray(values, dtype=np.float64)
+        if high <= low:
+            return np.zeros(values.shape, dtype=np.int64)
+        scaled = (values - low) / (high - low)
+        return np.clip(np.floor(scaled * self.curve_bins).astype(np.int64), 0, self.curve_bins - 1)
+
+    def _update_hpd(self, kind, level, true_params, intervals, combined):
+        state = self._hpd[kind][level]
+        widths = intervals[:, :, 1] - intervals[:, :, 0]
+        contains_true = (true_params >= intervals[:, :, 0]) & (true_params <= intervals[:, :, 1])
+        state["coverage_sum"] += np.sum(contains_true, axis=0)
+        state["width_sum"] += np.sum(widths, axis=0)
+        state["width_values"].append(np.asarray(widths, dtype=np.float32))
+        state["combined_width_values"].append(np.asarray(combined[:, 1] - combined[:, 0], dtype=np.float32))
+
+    def update(self, true_params, arrays):
+        true_params = np.asarray(true_params, dtype=np.float32)
+        n_rows = int(true_params.shape[0])
+        if n_rows == 0:
+            return
+
+        self.count += n_rows
+        self._update_hpd("posterior", "68", true_params, arrays["posterior_hpd_68"], arrays["posterior_hpd_68_combined"])
+        self._update_hpd("posterior", "95", true_params, arrays["posterior_hpd_95"], arrays["posterior_hpd_95_combined"])
+        self._update_hpd("ratio", "68", true_params, arrays["ratio_hpd_68"], arrays["ratio_hpd_68_combined"])
+        self._update_hpd("ratio", "95", true_params, arrays["ratio_hpd_95"], arrays["ratio_hpd_95_combined"])
+
+        ratio_bias = arrays["ratio_map"] - true_params
+        width68 = arrays["ratio_hpd_68"][:, :, 1] - arrays["ratio_hpd_68"][:, :, 0]
+        width95 = arrays["ratio_hpd_95"][:, :, 1] - arrays["ratio_hpd_95"][:, :, 0]
+        bins = self._bin_indices(true_params.reshape(-1))
+        np.add.at(self._curve_count, bins, 1.0)
+        np.add.at(self._curve_bias_sum, bins, ratio_bias.reshape(-1))
+        np.add.at(self._curve_width68_sum, bins, width68.reshape(-1))
+        np.add.at(self._curve_width95_sum, bins, width95.reshape(-1))
+
+    def _finalize_hpd_kind(self, kind):
+        kind_summary = {}
+        denom = max(1, int(self.count))
+        for level in ("68", "95"):
+            state = self._hpd[kind][level]
+            width_values = (
+                np.concatenate(state["width_values"], axis=0)
+                if state["width_values"]
+                else np.empty((0, self.n_dims), dtype=np.float32)
+            )
+            combined_values = (
+                np.concatenate(state["combined_width_values"], axis=0)
+                if state["combined_width_values"]
+                else np.empty((0,), dtype=np.float32)
+            )
+            kind_summary[level] = {
+                "n_points": int(self.count),
+                "coverage_fraction_per_dim": state["coverage_sum"] / denom,
+                "coverage_fraction_mean": float(np.sum(state["coverage_sum"]) / max(1, denom * self.n_dims)),
+                "mean_interval_width_per_dim": state["width_sum"] / denom,
+                "median_interval_width_per_dim": (
+                    np.median(width_values, axis=0) if width_values.size else np.zeros(self.n_dims)
+                ),
+                "mean_interval_width": float(np.sum(state["width_sum"]) / max(1, denom * self.n_dims)),
+                "median_interval_width": float(np.median(width_values)) if width_values.size else 0.0,
+                "mean_combined_width": float(np.mean(combined_values)) if combined_values.size else 0.0,
+                "median_combined_width": float(np.median(combined_values)) if combined_values.size else 0.0,
+            }
+        return kind_summary
+
+    def finalize(self):
+        mask = self._curve_count > 0
+        low, high = self.parameter_range
+        edges = np.linspace(low, high, self.curve_bins + 1, dtype=np.float64)
+        centers = 0.5 * (edges[:-1] + edges[1:])
+        counts = np.clip(self._curve_count[mask], 1.0, None)
+        x = centers[mask]
+        avg_bias = self._curve_bias_sum[mask] / counts
+        avg_width_68 = self._curve_width68_sum[mask] / counts
+        avg_width_95 = self._curve_width95_sum[mask] / counts
+        return {
+            "bias_summary": {
+                "source": {
+                    "map": "ratio",
+                    "hpd": "ratio",
+                },
+                "x": x,
+                "avg_bias": avg_bias,
+                "avg_width_68": avg_width_68,
+                "width_curves": {
+                    "68": {
+                        "x": x,
+                        "avg_width": avg_width_68,
+                    },
+                    "95": {
+                        "x": x,
+                        "avg_width": avg_width_95,
+                    },
+                },
+            },
+            "hpd_summary": {
+                "posterior": self._finalize_hpd_kind("posterior"),
+                "ratio": self._finalize_hpd_kind("ratio"),
+            },
+        }
+
+
+def _diagnostic_indices(n_points, max_points):
+    n_points = int(n_points)
+    max_points = int(max_points)
+    if n_points <= 0 or max_points <= 0:
+        return np.asarray([], dtype=np.int64)
+    if n_points <= max_points:
+        return np.arange(n_points, dtype=np.int64)
+    return np.unique(np.linspace(0, n_points - 1, num=max_points, dtype=np.int64))
+
+
+def _compact_map_store_from_array(map_array):
+    map_array = np.asarray(map_array, dtype=np.float32)
+    if map_array.ndim != 2:
+        raise ValueError(f"Expected diagnostic map array with 2 dimensions, got {map_array.shape}.")
+    return {
+        "format": "compact_map_store",
+        "n_points": int(map_array.shape[0]),
+        "n_dims": int(map_array.shape[1]),
+        "dtype": "float32",
+        "map": map_array,
+    }
+
+
+def _combined_intervals(intervals):
+    intervals = np.asarray(intervals, dtype=np.float32)
+    return np.stack(
+        [
+            np.mean(intervals[:, :, 0], axis=1),
+            np.mean(intervals[:, :, 1], axis=1),
+        ],
+        axis=1,
+    ).astype(np.float32)
+
+
+def _compact_hpd_store_from_arrays(intervals68, intervals95):
+    intervals68 = np.asarray(intervals68, dtype=np.float32)
+    intervals95 = np.asarray(intervals95, dtype=np.float32)
+    if intervals68.ndim != 3 or intervals95.ndim != 3:
+        raise ValueError("Expected diagnostic HPD arrays with shape (n_points, n_dims, 2).")
+    if intervals68.shape != intervals95.shape:
+        raise ValueError("68% and 95% diagnostic HPD arrays must have matching shapes.")
+    return {
+        "format": "compact_hpd_store",
+        "n_points": int(intervals68.shape[0]),
+        "n_dims": int(intervals68.shape[1]),
+        "dtype": "float32",
+        "68": {
+            "intervals": intervals68,
+            "interval_combined": _combined_intervals(intervals68),
+        },
+        "95": {
+            "intervals": intervals95,
+            "interval_combined": _combined_intervals(intervals95),
+        },
+    }
+
+
+def get_posteriors_and_errors_summary(
+    inference_design,
+    all_parameters_in_range,
+    models,
+    priors,
+    device,
+    *,
+    generator,
+    config=None,
+    n_qmc_samples=2**16,
+    eval_batch_size=32768,
+    max_model_evals_per_prior=int(2e15),
+    qmc_seed=2026,
+    max_gpus=1,
+    show_progress=True,
+    diagnostic_dir=None,
+    raw_diagnostic_sample_points=4096,
+    curve_bins=64,
+):
+    if not isinstance(inference_design, InferenceDesign):
+        raise TypeError("inference_design must be an InferenceDesign instance.")
+    if generator is None:
+        raise ValueError("generator is required for streaming inference data.")
+
+    device = torch.device(device)
+    n_posterior_combinations = int(inference_design.total_points)
+    n_repititions_per_parameter = int(inference_design.n_repititions_per_parameter)
+    n_dimensions = int(inference_design.n_dimensions)
+
+    requested_n_qmc = int(n_qmc_samples)
+    safe_n_qmc = max(
+        1024,
+        min(
+            requested_n_qmc,
+            int(max_model_evals_per_prior) // max(n_posterior_combinations * n_repititions_per_parameter, 1),
+        ),
+    )
+    if safe_n_qmc < requested_n_qmc:
+        print(
+            f"[QMC] Reducing n_qmc_samples from {requested_n_qmc} to {safe_n_qmc} "
+            f"to respect max_model_evals_per_prior={max_model_evals_per_prior}."
+        )
+
+    if max_gpus and int(max_gpus) > 1 and device.type == "cuda":
+        print("[posterior] Summary-mode inference currently streams priors on one process.")
+
+    batch_plan = _get_eval_batch_plan(
+        n_posterior_combinations,
+        n_repititions_per_parameter,
+        safe_n_qmc,
+        eval_batch_size,
+    )
+    combo_batch_size = batch_plan["combo_batch_size"]
+    print(
+        "[posterior-summary] "
+        f"design={inference_design.mode}, "
+        f"evaluated_points={n_posterior_combinations}, "
+        f"conceptual_grid_size={inference_design.conceptual_grid_size}, "
+        f"eval_batch_size={int(eval_batch_size)}, "
+        f"combo_batch_size={combo_batch_size}, "
+        f"obs_chunk_size={batch_plan['obs_chunk_size']}, "
+        f"theta_chunk_size={batch_plan['theta_chunk_size']}, "
+        f"forward_pairs={batch_plan['forward_pairs']}, "
+        f"qmc_samples={safe_n_qmc}"
+    )
+
+    diagnostic_dir = None if diagnostic_dir is None else Path(diagnostic_dir).resolve()
+    if diagnostic_dir is not None:
+        diagnostic_dir.mkdir(parents=True, exist_ok=True)
+
+    diag_indices = _diagnostic_indices(n_posterior_combinations, raw_diagnostic_sample_points)
+    diag_lookup = {int(value): pos for pos, value in enumerate(diag_indices.tolist())}
+    n_diag = int(diag_indices.size)
+    parameter_range = inference_design.config["data"]["parameter_range"]
+    model_lookup = _get_model_lookup(models)
+
+    runtimes = {}
+    for prior in priors:
+        prior_name = prior.__name__
+        theta_samples = _draw_prior_theta_samples(
+            prior,
+            all_parameters_in_range,
+            n_samples=safe_n_qmc,
+            seed=qmc_seed,
+            scramble=True,
+            dtype=torch.float32,
+        )
+        theta_samples_t = torch.as_tensor(theta_samples, dtype=torch.float32, device=device)
+        prior_vals = np.asarray(prior(theta_samples), dtype=np.float64)
+        prior_vals = np.clip(prior_vals, 1e-300, None)
+        log_prior_t = torch.as_tensor(np.log(prior_vals), dtype=torch.float64, device=device)[None, :]
+        raw = {
+            "sample_index": diag_indices.astype(np.int64),
+            "true_params": np.empty((n_diag, n_dimensions), dtype=np.float32),
+            "posterior_map": np.empty((n_diag, n_dimensions), dtype=np.float32),
+            "ratio_map": np.empty((n_diag, n_dimensions), dtype=np.float32),
+            "posterior_hpd_68": np.empty((n_diag, n_dimensions, 2), dtype=np.float32),
+            "posterior_hpd_95": np.empty((n_diag, n_dimensions, 2), dtype=np.float32),
+            "ratio_hpd_68": np.empty((n_diag, n_dimensions, 2), dtype=np.float32),
+            "ratio_hpd_95": np.empty((n_diag, n_dimensions, 2), dtype=np.float32),
+        }
+        runtimes[prior_name] = {
+            "prior": prior,
+            "model": model_lookup[prior_name].to(device).eval(),
+            "theta_samples": theta_samples,
+            "theta_samples_t": theta_samples_t,
+            "log_prior_t": log_prior_t,
+            "summary": _StreamingPriorSummary(
+                n_dimensions,
+                parameter_range,
+                curve_bins=curve_bins,
+            ),
+            "raw": raw,
+            "diagnostic_path": None,
+        }
+
+    total_iterations = n_posterior_combinations * n_repititions_per_parameter * len(priors)
+    progress = tqdm(
+        total=total_iterations,
+        desc="Calculating posteriors and errors (streaming summary)...",
+        disable=not show_progress,
+    )
+
+    with progress as pbar:
+        for flat_indices, true_params, sampled_batch in inference_design.iter_batches(combo_batch_size, generator):
+            diag_mask = np.isin(flat_indices, diag_indices)
+            diag_rows = np.nonzero(diag_mask)[0]
+            diag_positions = [diag_lookup[int(value)] for value in flat_indices[diag_mask]]
+
+            for prior in priors:
+                prior_name = prior.__name__
+                runtime = runtimes[prior_name]
+                log_ratio_sum_batch = _evaluate_log_ratio_sums(
+                    runtime["model"],
+                    sampled_batch,
+                    runtime["theta_samples_t"],
+                    eval_batch_size=eval_batch_size,
+                )
+                log_post_sum_batch = log_ratio_sum_batch + runtime["log_prior_t"]
+                arrays = _arrays_from_log_ratio_sums(
+                    runtime["theta_samples"],
+                    log_ratio_sum_batch.detach().cpu().numpy(),
+                    log_post_sum_batch.detach().cpu().numpy(),
+                )
+                runtime["summary"].update(true_params, arrays)
+
+                if diag_rows.size:
+                    raw = runtime["raw"]
+                    raw["true_params"][diag_positions, :] = true_params[diag_rows, :]
+                    for key in (
+                        "posterior_map",
+                        "ratio_map",
+                        "posterior_hpd_68",
+                        "posterior_hpd_95",
+                        "ratio_hpd_68",
+                        "ratio_hpd_95",
+                    ):
+                        raw[key][diag_positions, ...] = arrays[key][diag_rows, ...]
+
+                pbar.update(int(true_params.shape[0]) * n_repititions_per_parameter)
+
+    all_posteriors = {}
+    all_ratios = {}
+    all_hpds_posterior = {}
+    all_hpds_ratio = {}
+    bias_summary = {}
+    hpd_summary = {"posterior": {}, "ratio": {}}
+    raw_diagnostic_files = {}
+
+    for prior_name, runtime in runtimes.items():
+        finalized = runtime["summary"].finalize()
+        bias_summary[prior_name] = finalized["bias_summary"]
+        hpd_summary["posterior"][prior_name] = finalized["hpd_summary"]["posterior"]
+        hpd_summary["ratio"][prior_name] = finalized["hpd_summary"]["ratio"]
+
+        raw = runtime["raw"]
+        if diagnostic_dir is not None:
+            diagnostic_path = diagnostic_dir / f"{prior_name}_raw_diagnostic_sample.npz"
+            np.savez_compressed(diagnostic_path, **raw)
+            runtime["diagnostic_path"] = diagnostic_path
+            raw_diagnostic_files[prior_name] = str(diagnostic_path)
+        else:
+            raw_diagnostic_files[prior_name] = None
+
+        all_posteriors[prior_name] = _compact_map_store_from_array(raw["posterior_map"])
+        all_ratios[prior_name] = _compact_map_store_from_array(raw["ratio_map"])
+        all_hpds_posterior[prior_name] = _compact_hpd_store_from_arrays(
+            raw["posterior_hpd_68"],
+            raw["posterior_hpd_95"],
+        )
+        all_hpds_ratio[prior_name] = _compact_hpd_store_from_arrays(
+            raw["ratio_hpd_68"],
+            raw["ratio_hpd_95"],
+        )
+        runtime["model"].to("cpu")
+
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+    diagnostic_true_params = (
+        next(iter(runtimes.values()))["raw"]["true_params"].copy()
+        if runtimes
+        else np.empty((0, n_dimensions), dtype=np.float32)
+    )
+    diagnostic_sampled_data = np.empty(
+        (diagnostic_true_params.shape[0], n_repititions_per_parameter, n_dimensions),
+        dtype=np.float32,
+    )
+    diagnostic_inference_data = (
+        [axis.copy() for axis in inference_design.parameters_to_infer],
+        diagnostic_true_params,
+        diagnostic_sampled_data,
+    )
+
+    return {
+        "all_posteriors": all_posteriors,
+        "all_ratios": all_ratios,
+        "all_hpds_posterior": all_hpds_posterior,
+        "all_hpds_ratio": all_hpds_ratio,
+        "diagnostic_inference_data": diagnostic_inference_data,
+        "bias_summary": bias_summary,
+        "hpd_summary": hpd_summary,
+        "raw_diagnostic_files": raw_diagnostic_files,
+        "diagnostic_sample_indices": diag_indices,
+        "safe_n_qmc": int(safe_n_qmc),
+        "batch_plan": batch_plan,
+    }
 
 
 def _compute_prior_results_qmc(
