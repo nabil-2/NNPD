@@ -1,0 +1,25 @@
+[1/4] baseline: uniform-r0
+  epoch 1: train=0.55372, val=0.54405
+  epoch 2: train=0.54369, val=0.55167
+  epoch 3: train=0.54286, val=0.54386
+  epoch 4: train=0.54254, val=0.54516
+  epoch 5: train=0.54183, val=0.54477
+[2/4] baseline: normal-r0
+  epoch 1: train=0.57232, val=0.56145
+  epoch 2: train=0.56263, val=0.56553
+  epoch 3: train=0.56204, val=0.56055
+  epoch 4: train=0.56106, val=0.56013
+  epoch 5: train=0.56089, val=0.56086
+[3/4] baseline: exponential-r0
+  epoch 1: train=0.55965, val=0.55005
+  epoch 2: train=0.55185, val=0.55219
+  epoch 3: train=0.55180, val=0.54916
+  epoch 4: train=0.55072, val=0.55200
+  epoch 5: train=0.55061, val=0.54989
+[4/4] baseline: grid-r0
+  epoch 1: train=0.55111, val=0.54256
+  epoch 2: train=0.54136, val=0.54219
+  epoch 3: train=0.54008, val=0.54370
+  epoch 4: train=0.53909, val=0.55394
+  epoch 5: train=0.53894, val=0.54279
+Saved /mnt/data/nnpd_clean/validation/legacy_1d_results.json; 4 runs in 210.9 s

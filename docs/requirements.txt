@@ -1,0 +1,6 @@
+# Documentation-only dependencies. Do not install or change the NNPD runtime here.
+# Python >=3.11. These are compatible release pins, not "latest" aliases.
+Sphinx==8.2.3
+myst-parser==4.0.1
+furo==2025.12.19
+sphinx-autoapi==3.8.1

@@ -1,0 +1,181 @@
+{
+  "supplied_files": [
+    {
+      "name": "NNPD-toy_example_poc.zip",
+      "bytes": 18216028,
+      "sha256": "52825408ab80a2f75e8b825859a9476a24ad7dfa56bfccfd5042ff02293501c8"
+    },
+    {
+      "name": "NNPD camera ready.pdf",
+      "bytes": 286276,
+      "sha256": "dae311ceab736d8ddcb139493b26d32d7fde95197c164d44c151fed40f33c47e"
+    }
+  ],
+  "legacy_files": [
+    {
+      "path": ".gitignore",
+      "bytes": 4810,
+      "sha256": "d33bbff2b3753ba0dbc6a3c6d1f006ef960c8e5cb79f467a4078fae7c8cdfefa"
+    },
+    {
+      "path": "notebooks/cross_model_analysis.ipynb",
+      "bytes": 473097,
+      "sha256": "6d2aa02709a7db3c8d6c4911e6fa81d205ee3f7f7883ec5c0f95d2fbbd871c02",
+      "notebook_code_lines": 181
+    },
+    {
+      "path": "notebooks/dependency_proof.ipynb",
+      "bytes": 102780,
+      "sha256": "8440f79153bcf9abebedada2365aa13bdb67f8a584f7fe6e13732ab12845a177",
+      "notebook_code_lines": 219
+    },
+    {
+      "path": "notebooks/dimensionality_analysis.ipynb",
+      "bytes": 1664754,
+      "sha256": "17a7e2718d22ffb2101d394115586a68af24b976e7383d7b28dd3bcb12d14663",
+      "notebook_code_lines": 545
+    },
+    {
+      "path": "notebooks/prior_analysis.ipynb",
+      "bytes": 4144100,
+      "sha256": "5c737382a6da193fdb32e686c69dfb98f773f2e84868918a7f08ee6e9f3bef0f",
+      "notebook_code_lines": 1542
+    },
+    {
+      "path": "notebooks/toy_example.ipynb",
+      "bytes": 2057783,
+      "sha256": "6306f926075b3ad3e7ee1c39a9dcc61e70c088035e5359a80d255b0d93fa12ed",
+      "notebook_code_lines": 852
+    },
+    {
+      "path": "notebooks/toy_example_2D.ipynb",
+      "bytes": 12705521,
+      "sha256": "08fa543caff172a463b1d99c9491d70254a80662127a5597df6d10e3249fe06e",
+      "notebook_code_lines": 1537
+    },
+    {
+      "path": "notebooks/toy_example_nD.ipynb",
+      "bytes": 2486658,
+      "sha256": "919ebeaefeb639c2b4aef3e7e73d900ddbbca23e2faa6b1a2c370ae4c9dae739",
+      "notebook_code_lines": 428
+    },
+    {
+      "path": "notebooks/toy_example_nD_old.ipynb",
+      "bytes": 1605644,
+      "sha256": "f1f136c85cc56f55962740dc626eaf79975c6d02502af285dfa5fa5a111b557c",
+      "notebook_code_lines": 2556
+    },
+    {
+      "path": "notebooks/utils.py",
+      "bytes": 5816,
+      "sha256": "7b323da594f345f3e6afa75466951b07eb0878a12d72b3116f56e59e90284f53",
+      "python_lines": 129
+    },
+    {
+      "path": "scripts/activate_nnpd.sh",
+      "bytes": 654,
+      "sha256": "bd1bfcb06fb87a32d3ff73adb14070e503a87477938615bf2cd294822231b2df"
+    },
+    {
+      "path": "scripts/build_plot_collection.py",
+      "bytes": 10524,
+      "sha256": "4e000d2cf56b7d740d845905d10e20d63490a2f7f5e89d4c86d234c624e36bab",
+      "python_lines": 340
+    },
+    {
+      "path": "scripts/submit_toy_example_nd.sh",
+      "bytes": 17050,
+      "sha256": "bc9fa246e9d7e5ca6028ed6bbb349084d1b24fc9d511775992cdd137b0c706ca"
+    },
+    {
+      "path": "scripts/submit_toy_example_nd_sweep.sh",
+      "bytes": 2489,
+      "sha256": "f0c4023f3c6917db65eecb5a80c3a5199b0da197e04d3d1a2ffa1819014c2d28"
+    },
+    {
+      "path": "src/__init__.py",
+      "bytes": 181,
+      "sha256": "09fbc700f7255732a1dd2ed4f14980f1723cd68c6db1f383fb12238dc78c1822",
+      "python_lines": 6
+    },
+    {
+      "path": "src/data.py",
+      "bytes": 2448,
+      "sha256": "4c92049eeaef944723f3fc7cac2d491c3a29ca8e64809fd13512e52686661d7c",
+      "python_lines": 68
+    },
+    {
+      "path": "src/dimensionality_analysis.py",
+      "bytes": 25556,
+      "sha256": "697bbb97b11a8048f66a37779f2a2353c6006eef3a01a8b6dd79fa76d5d31538",
+      "python_lines": 652
+    },
+    {
+      "path": "src/models.py",
+      "bytes": 937,
+      "sha256": "95b7c063e9256b1694a95b54db94ca18605b15a2e80cdf587288b05cc3a414f8",
+      "python_lines": 29
+    },
+    {
+      "path": "src/plotting.py",
+      "bytes": 34470,
+      "sha256": "0c42f7a476863c1b2da4b4806442e5c0e84cbbf2ec364f0f7c899779d8570dc1",
+      "python_lines": 944
+    },
+    {
+      "path": "src/posterior.py",
+      "bytes": 73389,
+      "sha256": "da153db50389141510aa558c63a92afc9cc325f3c98dafd2209276a576a42f05",
+      "python_lines": 1881
+    },
+    {
+      "path": "src/priors.py",
+      "bytes": 14210,
+      "sha256": "b9e92e3899a8a7095bd3e9001fdeba9a9439fd3ef2bb4d6d5067a4d42c1a8bcd",
+      "python_lines": 425
+    },
+    {
+      "path": "src/training.py",
+      "bytes": 5589,
+      "sha256": "d24c791b597bb463cdf034644dc834763f490f7c360a682433f047346d28dc80",
+      "python_lines": 165
+    },
+    {
+      "path": "src/utils.py",
+      "bytes": 5667,
+      "sha256": "99b40fe6383e1334735aec54525ebe97c1eacd51a1cf35fae918f77272184e35",
+      "python_lines": 162
+    },
+    {
+      "path": "src/verification.py",
+      "bytes": 28276,
+      "sha256": "1b8af7fb9364409eb8661e21cb7bd91599e20cabb6d4bd35da094aa1e6e6872f",
+      "python_lines": 725
+    },
+    {
+      "path": "tests/test_dimensionality_analysis.py",
+      "bytes": 13069,
+      "sha256": "30ccc8536b3554424ee3eea84a24d5102de4773c03114584bc8e0e81e5e0c2fa",
+      "python_lines": 317
+    },
+    {
+      "path": "tests/test_toy_example_nd.py",
+      "bytes": 59882,
+      "sha256": "0f42c6e971a91d7c843e794539a2962be08cd0d0b07fb61d0b5345978c4e4729",
+      "python_lines": 1579
+    },
+    {
+      "path": "toy_example_nD.py",
+      "bytes": 48114,
+      "sha256": "076388fa01334d407c31158ac4528be9069d652be7f05f464a05ae99482a99e2",
+      "python_lines": 1270
+    }
+  ],
+  "line_count_method": "Physical Python lines including comments/docstrings/blanks; notebook code only is separate. Not a like-for-like feature benchmark.",
+  "line_counts": {
+    "legacy_active_entrypoint_and_src": 6327,
+    "new_nnpd_framework_and_reusable_nre": 1402,
+    "new_gaussian_application_and_extension": 1024,
+    "new_settings_and_run": 144
+  }
+}

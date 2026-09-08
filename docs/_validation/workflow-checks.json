@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "yaml_parse": "passed",
+  "default_branch_deploy_guard": true,
+  "pull_requests_do_not_deploy": true,
+  "build_permissions_read_only": true,
+  "strict_sphinx_build": true,
+  "application_install_or_training_in_build": false,
+  "config_version": "0.1.0",
+  "autoapi_source_dirs_exist": true,
+  "caveat": "Local YAML/configuration checks, not a GitHub Actions execution or a Sphinx build."
+}

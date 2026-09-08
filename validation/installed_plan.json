@@ -1,0 +1,254 @@
+{
+  "jobs": [
+    {
+      "id": "23aa4fce997a2139e2d84766",
+      "changed": null,
+      "changed_value": null,
+      "member": {
+        "name": "uniform-r0",
+        "prior": "uniform",
+        "replica": 0
+      },
+      "workload": {
+        "observation_dimension": 2,
+        "inferred_parameters": [
+          "mean:0",
+          "mean:1"
+        ],
+        "network_inputs": 4,
+        "training_rows": 1024,
+        "errors": [],
+        "warnings": [
+          "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+          "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+        ],
+        "truth_design": "grid",
+        "inference_cases": 9,
+        "candidate_design": "sobol",
+        "candidate_count_upper_bound": 512,
+        "inference_model_evaluations": 69255,
+        "estimated_inference_bytes": 37808
+      }
+    },
+    {
+      "id": "a7c1fc2c23bd8f29992f7037",
+      "changed": null,
+      "changed_value": null,
+      "member": {
+        "name": "normal-r0",
+        "prior": "normal",
+        "replica": 0
+      },
+      "workload": {
+        "observation_dimension": 2,
+        "inferred_parameters": [
+          "mean:0",
+          "mean:1"
+        ],
+        "network_inputs": 4,
+        "training_rows": 1024,
+        "errors": [],
+        "warnings": [
+          "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+          "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+        ],
+        "truth_design": "grid",
+        "inference_cases": 9,
+        "candidate_design": "sobol",
+        "candidate_count_upper_bound": 512,
+        "inference_model_evaluations": 69255,
+        "estimated_inference_bytes": 37808
+      }
+    },
+    {
+      "id": "f91e341bf0f69a415ad624ef",
+      "changed": "problem.infer",
+      "changed_value": [
+        "mean:*",
+        "std:1"
+      ],
+      "member": {
+        "name": "uniform-r0",
+        "prior": "uniform",
+        "replica": 0
+      },
+      "workload": {
+        "observation_dimension": 2,
+        "inferred_parameters": [
+          "mean:0",
+          "mean:1",
+          "std:1"
+        ],
+        "network_inputs": 5,
+        "training_rows": 1024,
+        "errors": [],
+        "warnings": [
+          "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+          "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+        ],
+        "truth_design": "grid",
+        "inference_cases": 27,
+        "candidate_design": "sobol",
+        "candidate_count_upper_bound": 512,
+        "inference_model_evaluations": 207765,
+        "estimated_inference_bytes": 53284
+      }
+    },
+    {
+      "id": "a395756b8af6b2bc38dab10c",
+      "changed": "problem.infer",
+      "changed_value": [
+        "mean:*",
+        "std:1"
+      ],
+      "member": {
+        "name": "normal-r0",
+        "prior": "normal",
+        "replica": 0
+      },
+      "workload": {
+        "observation_dimension": 2,
+        "inferred_parameters": [
+          "mean:0",
+          "mean:1",
+          "std:1"
+        ],
+        "network_inputs": 5,
+        "training_rows": 1024,
+        "errors": [],
+        "warnings": [
+          "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+          "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+        ],
+        "truth_design": "grid",
+        "inference_cases": 27,
+        "candidate_design": "sobol",
+        "candidate_count_upper_bound": 512,
+        "inference_model_evaluations": 207765,
+        "estimated_inference_bytes": 53284
+      }
+    },
+    {
+      "id": "2008bcf2860f70525d743b61",
+      "changed": "model.kind",
+      "changed_value": "residual",
+      "member": {
+        "name": "uniform-r0",
+        "prior": "uniform",
+        "replica": 0
+      },
+      "workload": {
+        "observation_dimension": 2,
+        "inferred_parameters": [
+          "mean:0",
+          "mean:1"
+        ],
+        "network_inputs": 4,
+        "training_rows": 1024,
+        "errors": [],
+        "warnings": [
+          "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+          "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+        ],
+        "truth_design": "grid",
+        "inference_cases": 9,
+        "candidate_design": "sobol",
+        "candidate_count_upper_bound": 512,
+        "inference_model_evaluations": 69255,
+        "estimated_inference_bytes": 37808
+      }
+    },
+    {
+      "id": "f918e1d8595ff21a12e254d1",
+      "changed": "model.kind",
+      "changed_value": "residual",
+      "member": {
+        "name": "normal-r0",
+        "prior": "normal",
+        "replica": 0
+      },
+      "workload": {
+        "observation_dimension": 2,
+        "inferred_parameters": [
+          "mean:0",
+          "mean:1"
+        ],
+        "network_inputs": 4,
+        "training_rows": 1024,
+        "errors": [],
+        "warnings": [
+          "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+          "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+        ],
+        "truth_design": "grid",
+        "inference_cases": 9,
+        "candidate_design": "sobol",
+        "candidate_count_upper_bound": 512,
+        "inference_model_evaluations": 69255,
+        "estimated_inference_bytes": 37808
+      }
+    },
+    {
+      "id": "89705a8abe3b697fb8b3a238",
+      "changed": "training.learning_rate",
+      "changed_value": 0.01,
+      "member": {
+        "name": "uniform-r0",
+        "prior": "uniform",
+        "replica": 0
+      },
+      "workload": {
+        "observation_dimension": 2,
+        "inferred_parameters": [
+          "mean:0",
+          "mean:1"
+        ],
+        "network_inputs": 4,
+        "training_rows": 1024,
+        "errors": [],
+        "warnings": [
+          "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+          "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+        ],
+        "truth_design": "grid",
+        "inference_cases": 9,
+        "candidate_design": "sobol",
+        "candidate_count_upper_bound": 512,
+        "inference_model_evaluations": 69255,
+        "estimated_inference_bytes": 37808
+      }
+    },
+    {
+      "id": "c16af66da0e045a8f7aec6f3",
+      "changed": "training.learning_rate",
+      "changed_value": 0.01,
+      "member": {
+        "name": "normal-r0",
+        "prior": "normal",
+        "replica": 0
+      },
+      "workload": {
+        "observation_dimension": 2,
+        "inferred_parameters": [
+          "mean:0",
+          "mean:1"
+        ],
+        "network_inputs": 4,
+        "training_rows": 1024,
+        "errors": [],
+        "warnings": [
+          "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+          "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+        ],
+        "truth_design": "grid",
+        "inference_cases": 9,
+        "candidate_design": "sobol",
+        "candidate_count_upper_bound": 512,
+        "inference_model_evaluations": 69255,
+        "estimated_inference_bytes": 37808
+      }
+    }
+  ],
+  "total_models": 8,
+  "sweep_rule": "baseline plus one changed knob; fixed cohort per configuration"
+}

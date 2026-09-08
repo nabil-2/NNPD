@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="3" tests="86" time="35.614" timestamp="2026-09-08T19:17:22.306512+00:00" hostname="localhost"><testcase classname="tests.test_cli" name="test_cli_plan_is_safe_and_has_no_output_side_effects" time="1.960" /><testcase classname="tests.test_cli" name="test_cli_train_analyze_verify_and_application_override" time="3.441" /><testcase classname="tests.test_cli" name="test_application_factory_rejects_non_experiments" time="0.001" /><testcase classname="tests.test_config" name="test_user_example_is_five_runs_not_nine" time="0.001" /><testcase classname="tests.test_config" name="test_lists_are_literal_and_parameter_sets_are_atomic" time="0.001" /><testcase classname="tests.test_config" name="test_atomic_dictionary_and_identity_ignore_dictionary_order" time="0.000" /><testcase classname="tests.test_config" name="test_invalid_choice[value0]" time="0.000" /><testcase classname="tests.test_config" name="test_invalid_choice[value1]" time="0.000" /><testcase classname="tests.test_config" name="test_invalid_choice[not-a-list]" time="0.000" /><testcase classname="tests.test_config" name="test_invalid_sweep[config0]" time="0.000" /><testcase classname="tests.test_config" name="test_invalid_sweep[config1]" time="0.000" /><testcase classname="tests.test_config" name="test_invalid_sweep[config2]" time="0.000" /><testcase classname="tests.test_config" name="test_invalid_sweep[config3]" time="0.000" /><testcase classname="tests.test_config" name="test_all_variants_validated_before_first_training" time="0.002" /><testcase classname="tests.test_config" name="test_legacy_configuration_is_explicit" time="0.009" /><testcase classname="tests.test_config" name="test_network_and_dependency_options_are_ofat" time="0.002" /><testcase classname="tests.test_config" name="test_load_settings_and_unknown_profile" time="0.001" /><testcase classname="tests.test_config" name="test_bad_knobs_fail_early[data-train_size-127]" time="0.001" /><testcase classname="tests.test_config" name="test_bad_knobs_fail_early[training-epochs-0]" time="0.001" /><testcase classname="tests.test_config" name="test_bad_knobs_fail_early[training-learning_rate--0.1]" time="0.001" /><testcase classname="tests.test_config" name="test_bad_knobs_fail_early[training-precision-bad]" time="0.001" /><testcase classname="tests.test_config" name="test_bad_knobs_fail_early[model-dropout-1]" time="0.001" /><testcase classname="tests.test_config" name="test_bad_knobs_fail_early[inference-levels-value5]" time="0.001" /><testcase classname="tests.test_config" name="test_bad_knobs_fail_early[inference-candidate_count-0]" time="0.001" /><testcase classname="tests.test_config" name="test_bad_knobs_fail_early[inference-truth_margin_fraction-6]" time="0.001" /><testcase classname="tests.test_distributed" name="test_two_cpu_ddp_matches_single_global_batches_including_empty_last_shard" time="7.940" /><testcase classname="tests.test_distributed" name="test_two_cpu_workers_process_distinct_full_jobs_and_share_observations" time="14.378" /><testcase classname="tests.test_distributed" name="test_single_cuda_training_and_inference[off]" time="0.000"><skipped type="pytest.skip" message="No CUDA device available">/mnt/data/documentation_update/nnpd_clean/tests/test_distributed.py:77: No CUDA device available</skipped></testcase><testcase classname="tests.test_distributed" name="test_single_cuda_training_and_inference[float16]" time="0.000"><skipped type="pytest.skip" message="No CUDA device available">/mnt/data/documentation_update/nnpd_clean/tests/test_distributed.py:77: No CUDA device available</skipped></testcase><testcase classname="tests.test_distributed" name="test_two_cuda_nccl_training_and_inference" time="0.000"><skipped type="pytest.skip" message="Two CUDA devices are required">/mnt/data/documentation_update/nnpd_clean/tests/test_distributed.py:89: Two CUDA devices are required</skipped></testcase><testcase classname="tests.test_modes" name="test_adamw_residual_gradient_clipping_and_best_checkpoint[off]" time="0.174" /><testcase classname="tests.test_modes" name="test_adamw_residual_gradient_clipping_and_best_checkpoint[bfloat16]" time="0.167" /><testcase classname="tests.test_modes" name="test_sobol_truths_mixed_prior_support_and_zero_diagnostic_retention" time="0.178" /><testcase classname="tests.test_modes" name="test_no_posterior_or_reference_targets_is_explicit" time="0.128" /><testcase classname="tests.test_modes" name="test_runtime_validations" time="0.002" /><testcase classname="tests.test_notebooks" name="test_all_notebooks_execute_in_a_clean_copy_and_define_no_functions" time="2.176"><failure message="AssertionError">self = &lt;nbclient.client.NotebookClient object at 0x7fdb6f897620&gt;, kwargs = {}
+cleanup_kc = True
+on_signal = &lt;function NotebookClient.async_setup_kernel.&lt;locals&gt;.on_signal at 0x7fdb6c8df920&gt;
+loop = &lt;_UnixSelectorEventLoop running=False closed=False debug=False&gt;
+
+    @asynccontextmanager
+    async def async_setup_kernel(self, **kwargs: t.Any) -&gt; t.AsyncGenerator[None, None]:
+        """
+        Context manager for setting up the kernel to execute a notebook.
+    
+        This assigns the Kernel Manager (``self.km``) if missing and Kernel Client(``self.kc``).
+    
+        When control returns from the yield it stops the client's zmq channels, and shuts
+        down the kernel.
+    
+        Handlers for SIGINT and SIGTERM are also added to cleanup in case of unexpected shutdown.
+        """
+        # by default, cleanup the kernel client if we own the kernel manager
+        # and keep it alive if we don't
+        cleanup_kc = kwargs.pop("cleanup_kc", self.owns_km)
+        if self.km is None:
+            self.km = self.create_kernel_manager()
+    
+        # self._cleanup_kernel uses run_async, which ensures the ioloop is running again.
+        # This is necessary as the ioloop has stopped once atexit fires.
+        atexit.register(self._cleanup_kernel)
+    
+        def on_signal() -&gt; None:
+            """Handle signals."""
+            self._async_cleanup_kernel_future = asyncio.ensure_future(self._async_cleanup_kernel())
+            atexit.unregister(self._cleanup_kernel)
+    
+        loop = asyncio.get_event_loop()
+        try:
+            loop.add_signal_handler(signal.SIGINT, on_signal)
+            loop.add_signal_handler(signal.SIGTERM, on_signal)
+        except RuntimeError:
+            # NotImplementedError: Windows does not support signals.
+            # RuntimeError: Raised when add_signal_handler is called outside the main thread
+            pass
+    
+        if not self.km.has_kernel:
+            await self.async_start_new_kernel(**kwargs)
+    
+        if self.kc is None:
+            await self.async_start_new_kernel_client()
+    
+        try:
+&gt;           yield
+
+/opt/pyvenv/lib/python3.13/site-packages/nbclient/client.py:654: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/pyvenv/lib/python3.13/site-packages/nbclient/client.py:697: in async_execute
+    info_msg = await self.async_wait_for_reply(msg_id)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/opt/pyvenv/lib/python3.13/site-packages/nbclient/client.py:876: in async_wait_for_reply
+    msg: dict[str, t.Any] = await ensure_async(
+/opt/pyvenv/lib/python3.13/site-packages/jupyter_core/utils/__init__.py:214: in ensure_async
+    result = await obj
+             ^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;jupyter_client.channels.AsyncZMQSocketChannel object at 0x7fdb6f84bd90&gt;
+timeout = 5
+
+    async def get_msg(  # type:ignore[override]
+        self, timeout: float | None = None
+    ) -&gt; t.Dict[str, t.Any]:
+        """Gets a message if there is one that is ready."""
+        assert self.socket is not None
+        timeout_ms = None if timeout is None else int(timeout * 1000)  # seconds to ms
+&gt;       ready = await self.socket.poll(timeout_ms)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       asyncio.exceptions.CancelledError
+
+/opt/pyvenv/lib/python3.13/site-packages/jupyter_client/channels.py:311: CancelledError
+
+During handling of the above exception, another exception occurred:
+
+tmp_path = PosixPath('/tmp/pytest-of-root/pytest-0/test_all_notebooks_execute_in_0')
+
+    @pytest.mark.notebook
+    def test_all_notebooks_execute_in_a_clean_copy_and_define_no_functions(tmp_path):
+        project = tmp_path / "project"
+        shutil.copytree(ROOT, project, ignore=shutil.ignore_patterns("outputs", ".git", ".pytest_cache", "__pycache__",
+                                                                   "validation", "*.egg-info", "build", "dist"))
+        notebooks = sorted((project / "notebooks").glob("*.ipynb"))
+        assert len(notebooks) == 3
+        model_counts = []
+        for path in notebooks:
+            notebook = nbformat.read(path, as_version=4)
+            for cell in notebook.cells:
+                if cell.cell_type == "code":
+                    nodes = ast.walk(ast.parse(cell.source))
+                    assert not any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) for node in nodes)
+&gt;           NotebookClient(notebook, timeout=120, kernel_name="python3", resources={"metadata": {"path": str(path.parent)}}).execute()
+
+tests/test_notebooks.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/opt/pyvenv/lib/python3.13/site-packages/jupyter_core/utils/__init__.py:165: in wrapped
+    return loop.run_until_complete(inner)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/asyncio/base_events.py:725: in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+/opt/pyvenv/lib/python3.13/site-packages/nbclient/client.py:693: in async_execute
+    async with self.async_setup_kernel(**kwargs):
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/lib/python3.13/contextlib.py:235: in __aexit__
+    await self.gen.athrow(value)
+/opt/pyvenv/lib/python3.13/site-packages/nbclient/client.py:660: in async_setup_kernel
+    await self._async_cleanup_kernel()
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = &lt;nbclient.client.NotebookClient object at 0x7fdb6f897620&gt;
+
+    async def _async_cleanup_kernel(self) -&gt; None:
+&gt;       assert self.km is not None
+               ^^^^^^^^^^^^^^^^^^^
+E       AssertionError
+
+/opt/pyvenv/lib/python3.13/site-packages/nbclient/client.py:504: AssertionError</failure></testcase><testcase classname="tests.test_pipeline" name="test_real_pipeline_all_four_priors_shared_artifacts_and_reload" time="0.617" /><testcase classname="tests.test_pipeline" name="test_adding_metrics_and_repeating_runs_do_not_retrain" time="0.302" /><testcase classname="tests.test_pipeline" name="test_learning_rate_sweep_reuses_data_and_observations_but_not_model" time="0.284" /><testcase classname="tests.test_pipeline" name="test_saved_root_is_relocatable_and_restore_ignores_launcher_environment" time="0.209" /><testcase classname="tests.test_pipeline" name="test_train_then_analyze_and_no_implicit_training" time="0.165" /><testcase classname="tests.test_pipeline" name="test_failed_training_recovers_without_rebuilding_data" time="0.164" /><testcase classname="tests.test_pipeline" name="test_end_to_end_analytic_oracle_and_prior_multiplied_once" time="0.116" /><testcase classname="tests.test_pipeline" name="test_parameter_set_with_std_really_trains_and_evaluates" time="0.198" /><testcase classname="tests.test_pipeline" name="test_plots_and_result_readers" time="0.979" /><testcase classname="tests.test_pipeline" name="test_guard_refuses_large_work_without_shrinking_science" time="0.002" /><testcase classname="tests.test_pipeline" name="test_framework_has_no_gaussian_configuration_dependency" time="0.027" /><testcase classname="tests.test_science" name="test_continuous_priors_normalized_and_sampler_matches_density[uniform-0]" time="0.005" /><testcase classname="tests.test_science" name="test_continuous_priors_normalized_and_sampler_matches_density[normal-0]" time="0.011" /><testcase classname="tests.test_science" name="test_continuous_priors_normalized_and_sampler_matches_density[exponential-0.1]" time="0.003" /><testcase classname="tests.test_science" name="test_continuous_priors_normalized_and_sampler_matches_density[exponential--0.1]" time="0.002" /><testcase classname="tests.test_science" name="test_continuous_priors_normalized_and_sampler_matches_density[exponential-0]" time="0.001" /><testcase classname="tests.test_science" name="test_continuous_priors_normalized_and_sampler_matches_density[exponential-10]" time="0.004" /><testcase classname="tests.test_science" name="test_continuous_priors_normalized_and_sampler_matches_density[exponential--10]" time="0.004" /><testcase classname="tests.test_science" name="test_normal_uses_standard_deviation_four_not_variance_four" time="0.002" /><testcase classname="tests.test_science" name="test_grid_probability_mass_and_native_support" time="0.001" /><testcase classname="tests.test_science" name="test_mixed_support_and_selected_parameter_order" time="0.001" /><testcase classname="tests.test_science" name="test_invalid_dependencies[infer0]" time="0.001" /><testcase classname="tests.test_science" name="test_invalid_dependencies[infer1]" time="0.001" /><testcase classname="tests.test_science" name="test_invalid_dependencies[infer2]" time="0.001" /><testcase classname="tests.test_science" name="test_invalid_dependencies[infer3]" time="0.001" /><testcase classname="tests.test_science" name="test_invalid_dependencies[infer4]" time="0.001" /><testcase classname="tests.test_science" name="test_gaussian_likelihood_sampling_and_positive_std" time="0.007" /><testcase classname="tests.test_science" name="test_balanced_joint_product_and_exact_sizes" time="0.004" /><testcase classname="tests.test_science" name="test_hld_matches_analytic_gaussian_interval" time="0.002" /><testcase classname="tests.test_science" name="test_joint_hld_projection_is_not_marginal_hld" time="0.005" /><testcase classname="tests.test_science" name="test_hld_ranks_density_not_quadrature_mass_and_includes_ties" time="0.001" /><testcase classname="tests.test_science" name="test_invalid_density_rejected[scores0]" time="0.000" /><testcase classname="tests.test_science" name="test_invalid_density_rejected[scores1]" time="0.000" /><testcase classname="tests.test_science" name="test_invalid_density_rejected[scores2]" time="0.000" /><testcase classname="tests.test_science" name="test_extreme_scores_are_stable" time="0.001" /><testcase classname="tests.test_science" name="test_ensemble_log_ratio_and_chunk_equivalence" time="0.002" /><testcase classname="tests.test_science" name="test_models_return_scalar_logits_and_accept_mixed_inputs[mlp]" time="0.003" /><testcase classname="tests.test_science" name="test_models_return_scalar_logits_and_accept_mixed_inputs[residual]" time="0.002" /><testcase classname="tests.test_science" name="test_weighted_wasserstein_matches_scipy" time="0.001" /><testcase classname="tests.test_storage" name="test_fingerprints_distinguish_different_functions_in_same_module" time="0.018" /><testcase classname="tests.test_storage" name="test_atomic_failure_never_becomes_cache_hit" time="0.002" /><testcase classname="tests.test_storage" name="test_array_roundtrip_memmap_and_corruption_detection" time="0.006" /><testcase classname="tests.test_storage" name="test_unsafe_names_rejected[../foo]" time="0.000" /><testcase classname="tests.test_storage" name="test_unsafe_names_rejected[/tmp/foo]" time="0.001" /><testcase classname="tests.test_storage" name="test_unsafe_names_rejected[a/b]" time="0.000" /><testcase classname="tests.test_storage" name="test_unsafe_names_rejected[..]" time="0.000" /><testcase classname="tests.test_storage" name="test_unsafe_names_rejected[]" time="0.000" /><testcase classname="tests.test_storage" name="test_object_arrays_rejected" time="0.001" /><testcase classname="tests.test_storage" name="test_shared_product_builds_once_and_key_controls_reuse" time="0.030" /><testcase classname="tests.test_storage" name="test_dependency_cycle_and_missing_names_fail_before_training" time="0.002" /></testsuite></testsuites>

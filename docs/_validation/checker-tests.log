@@ -1,0 +1,13 @@
+test_assets_and_external_urls (__main__.DocumentationChecks.test_assets_and_external_urls) ... ok
+test_invalid_python_is_detected (__main__.DocumentationChecks.test_invalid_python_is_detected) ... ok
+test_missing_fragment (__main__.DocumentationChecks.test_missing_fragment) ... ok
+test_missing_include_is_detected (__main__.DocumentationChecks.test_missing_include_is_detected) ... ok
+test_missing_page (__main__.DocumentationChecks.test_missing_page) ... ok
+test_project_site_root_relative_link (__main__.DocumentationChecks.test_project_site_root_relative_link) ... ok
+test_url_escaped_paths (__main__.DocumentationChecks.test_url_escaped_paths) ... ok
+test_valid_html (__main__.DocumentationChecks.test_valid_html) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.009s
+
+OK

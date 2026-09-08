@@ -1,0 +1,3662 @@
+{
+  "profile": "mixed",
+  "seconds": 31.57596204499987,
+  "runs": [
+    {
+      "run": {
+        "backend": {
+          "cpu_threads": 1,
+          "cuda": null,
+          "deterministic": true,
+          "device_name": "cpu",
+          "device_type": "cpu",
+          "torch": "2.10.0+cpu",
+          "world_size": 1
+        },
+        "changed": null,
+        "config": {
+          "application": "gaussian:GaussianExperiment",
+          "cohort": {
+            "priors": [
+              "uniform",
+              "normal"
+            ],
+            "replicas": 1
+          },
+          "data": {
+            "test_size": 256,
+            "train_size": 1024,
+            "validation_size": 256
+          },
+          "inference": {
+            "align_truths_to_grid": true,
+            "candidate_count": 512,
+            "candidate_design": "sobol",
+            "candidate_points_per_axis": 200,
+            "diagnostic_cases": 2,
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "max_candidate_points": 2000000,
+            "max_grid_truths": 1000000,
+            "max_model_evaluations": 2000000000000,
+            "max_saved_bytes": 8000000000,
+            "native_grid_prior": true,
+            "observations": 15,
+            "repeats": 1,
+            "retain": "diagnostic",
+            "seed": 2026,
+            "sobol_truths": 65536,
+            "targets": [
+              "ratio",
+              "posterior",
+              "exact"
+            ],
+            "truth_design": "grid",
+            "truth_margin_fraction": 0.1,
+            "truth_points_per_axis": 3
+          },
+          "metrics": [
+            "classification",
+            "bias",
+            "coverage",
+            "width",
+            "resolution",
+            "posterior",
+            "exact_reference",
+            "pairwise",
+            "reweighting",
+            "normalization"
+          ],
+          "model": {
+            "activation": "relu",
+            "blocks": 3,
+            "dropout": 0.0,
+            "hidden": [
+              32,
+              32
+            ],
+            "kind": "mlp",
+            "width": 64
+          },
+          "output": "/mnt/data/reference_mixed",
+          "plots": [
+            "training",
+            "prior",
+            "inference",
+            "pairwise",
+            "reweighting",
+            "showcase"
+          ],
+          "plotting": {
+            "bins": 30,
+            "dpi": 140,
+            "max_inference_cases": 200,
+            "prior_points": 1000
+          },
+          "priors": {
+            "exponential": {
+              "family": "exponential"
+            },
+            "grid": {
+              "family": "grid"
+            },
+            "normal": {
+              "family": "normal"
+            },
+            "uniform": {
+              "family": "uniform"
+            }
+          },
+          "problem": {
+            "dimension": 2,
+            "fixed": {},
+            "fixed_mean": 5.0,
+            "fixed_std": 2.0,
+            "infer": [
+              "mean:*"
+            ],
+            "overrides": {},
+            "parameters": {
+              "mean": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 10.0,
+                "low": 0.0,
+                "normal_mean": 5.0,
+                "normal_std": 4.0
+              },
+              "std": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 4.0,
+                "low": 0.2,
+                "normal_mean": 2.0,
+                "normal_std": 0.7
+              }
+            }
+          },
+          "runtime": {
+            "cpu_threads": 1,
+            "deterministic": true,
+            "device": "cpu",
+            "parallel": "jobs",
+            "timeout_minutes": 60
+          },
+          "seed": 0,
+          "training": {
+            "batch_size": 128,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "checkpoint": "last",
+            "epochs": 2,
+            "epsilon": 1e-08,
+            "evaluation_batch_size": 2048,
+            "gradient_clip": null,
+            "learning_rate": 0.001,
+            "optimizer": "adam",
+            "precision": "off",
+            "verbose": true,
+            "weight_decay": 0.0
+          },
+          "verification": {
+            "directions": 4,
+            "marginal_samples": 128,
+            "normalization_design": "diagonal",
+            "normalization_on_grid": true,
+            "normalization_thetas": 4,
+            "pair_design": "grid",
+            "pairs": 4,
+            "samples_per_endpoint": 32,
+            "seed": 2027,
+            "showcase": {
+              "bins": 30,
+              "samples": 256,
+              "source_fraction": 0.3,
+              "target_fraction": 0.7
+            },
+            "source_samples": 64,
+            "target_samples": 64
+          }
+        },
+        "experiment": "gaussian-prior-dependence",
+        "id": "449c646bae0343c348055fcd",
+        "member": {
+          "name": "uniform-r0",
+          "prior": "uniform",
+          "replica": 0
+        },
+        "numpy": "2.3.5",
+        "python": "3.13.5",
+        "source_archive": "0864d1a9133f5d6247f41bbc",
+        "started": "2026-09-08T10:37:35.548565+00:00",
+        "workload": {
+          "candidate_count_upper_bound": 512,
+          "candidate_design": "sobol",
+          "errors": [],
+          "estimated_inference_bytes": 37808,
+          "inference_cases": 9,
+          "inference_model_evaluations": 69255,
+          "inferred_parameters": [
+            "mean:0",
+            "mean:1"
+          ],
+          "network_inputs": 4,
+          "observation_dimension": 2,
+          "training_rows": 1024,
+          "truth_design": "grid",
+          "warnings": [
+            "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+            "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+          ]
+        }
+      },
+      "metrics": {
+        "bias": {
+          "mean_absolute": 3.143665730539295,
+          "mean_signed": -1.6675197345515091,
+          "per_axis_absolute": [
+            3.8283289530211024,
+            2.4590025080574884
+          ],
+          "per_axis_signed": [
+            -3.8283289530211024,
+            0.493289483918084
+          ],
+          "rmse": 4.083340386175171
+        },
+        "classification": {
+          "accuracy": 0.5078125,
+          "auc": 0.6170654296875,
+          "bce": 0.6847743940939431
+        },
+        "coverage": {
+          "cases": 9,
+          "interpretation": "empirical true-parameter membership on supplied truths",
+          "joint_density": [
+            0.2222222222222222,
+            0.8888888888888888
+          ],
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "projected_mean": [
+            0.6666666666666666,
+            0.9444444444444444
+          ],
+          "projected_per_axis": [
+            [
+              0.3333333333333333,
+              1.0
+            ],
+            [
+              0.8888888888888888,
+              1.0
+            ]
+          ]
+        },
+        "exact_reference": {
+          "bias": {
+            "mean_absolute": 0.4291907048059834,
+            "mean_signed": -0.05518177110287878,
+            "per_axis_absolute": [
+              0.3893644056386418,
+              0.4690170039733251
+            ],
+            "per_axis_signed": [
+              0.005371963812245263,
+              -0.11573550601800282
+            ],
+            "rmse": 0.5390626364376261
+          },
+          "caveat": "Exact likelihood, but same numerical candidate approximation; not an analytic continuous HLD.",
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.5555555555555556,
+              1.0
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.6666666666666666,
+              0.9444444444444444
+            ],
+            "projected_per_axis": [
+              [
+                0.7777777777777778,
+                0.5555555555555556
+              ],
+              [
+                1.0,
+                0.8888888888888888
+              ]
+            ]
+          },
+          "enabled": true,
+          "learned_vs_exact_mode_rmse": 4.118623739339813,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              1.0938795502814982,
+              1.9098654789850116
+            ],
+            "per_axis": [
+              [
+                1.0948989184366331,
+                1.092860182126363
+              ],
+              [
+                1.8715881961915228,
+                1.9481427617785003
+              ]
+            ]
+          }
+        },
+        "normalization": {
+          "caveat": "Monte Carlo check under each model's own training-prior evidence; finite-sample error remains.",
+          "expected_log_mean": 0.0,
+          "log_mean_ratio_per_theta": [
+            -0.1029264932520082,
+            -0.18134596271725112,
+            -0.26413877501629734,
+            -0.5031488185991728
+          ],
+          "mean_absolute_log_error": 0.26289001239618237
+        },
+        "pairwise": {
+          "distance_definition": "Euclidean distance in raw inferred parameter coordinates",
+          "mae_pooled": 5.524545431309399,
+          "max_absolute": 21.20762593746185,
+          "median_pair_rmse": 6.10290393197298,
+          "per_pair_rmse": [
+            2.732298459917325,
+            11.056051568621676,
+            9.473509404028635,
+            1.2463257318046324
+          ],
+          "rmse_pooled": 7.433075396833832,
+          "spearman_distance_rmse": 1.0,
+          "worst_pair_rmse": 11.056051568621676
+        },
+        "posterior": {
+          "bias": {
+            "mean_absolute": 3.143665730539295,
+            "mean_signed": -1.6675197345515091,
+            "per_axis_absolute": [
+              3.8283289530211024,
+              2.4590025080574884
+            ],
+            "per_axis_signed": [
+              -3.8283289530211024,
+              0.493289483918084
+            ],
+            "rmse": 4.083340386175171
+          },
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.2222222222222222,
+              0.8888888888888888
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.6666666666666666,
+              0.9444444444444444
+            ],
+            "projected_per_axis": [
+              [
+                0.3333333333333333,
+                1.0
+              ],
+              [
+                0.8888888888888888,
+                1.0
+              ]
+            ]
+          },
+          "enabled": true,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              5.913656198626591,
+              8.310943348643681
+            ],
+            "per_axis": [
+              [
+                4.6005727669431105,
+                7.226739630310072
+              ],
+              [
+                6.664475717064407,
+                9.957410980222953
+              ]
+            ]
+          }
+        },
+        "resolution": {
+          "base_measure": "Lebesgue",
+          "candidate_count": 512,
+          "candidate_ess_fraction_median": 0.2222326649459993,
+          "candidate_ess_median": 113.78312445235164,
+          "candidate_ess_min": 37.52228648847387,
+          "mean_enclosed_mass": [
+            0.6827702089600323,
+            0.9504528821372165
+          ],
+          "warning": "Small candidate ESS can signal inadequate resolution; increase candidates and compare exact_reference."
+        },
+        "reweighting": {
+          "median_ess": 63.59743288158549,
+          "median_ess_fraction": 0.9937098887747733,
+          "median_exact_sliced_w1": 1.5880759906286464,
+          "median_sliced_w1": 3.8453020244112466,
+          "median_unweighted_sliced_w1": 3.8781234879350066,
+          "spearman_distance_w1": 1.0,
+          "worst_sliced_w1": 5.072104124053659
+        },
+        "width": {
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "mean": [
+            5.913656198626591,
+            8.310943348643681
+          ],
+          "per_axis": [
+            [
+              4.6005727669431105,
+              7.226739630310072
+            ],
+            [
+              6.664475717064407,
+              9.957410980222953
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "run": {
+        "backend": {
+          "cpu_threads": 1,
+          "cuda": null,
+          "deterministic": true,
+          "device_name": "cpu",
+          "device_type": "cpu",
+          "torch": "2.10.0+cpu",
+          "world_size": 1
+        },
+        "changed": null,
+        "config": {
+          "application": "gaussian:GaussianExperiment",
+          "cohort": {
+            "priors": [
+              "uniform",
+              "normal"
+            ],
+            "replicas": 1
+          },
+          "data": {
+            "test_size": 256,
+            "train_size": 1024,
+            "validation_size": 256
+          },
+          "inference": {
+            "align_truths_to_grid": true,
+            "candidate_count": 512,
+            "candidate_design": "sobol",
+            "candidate_points_per_axis": 200,
+            "diagnostic_cases": 2,
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "max_candidate_points": 2000000,
+            "max_grid_truths": 1000000,
+            "max_model_evaluations": 2000000000000,
+            "max_saved_bytes": 8000000000,
+            "native_grid_prior": true,
+            "observations": 15,
+            "repeats": 1,
+            "retain": "diagnostic",
+            "seed": 2026,
+            "sobol_truths": 65536,
+            "targets": [
+              "ratio",
+              "posterior",
+              "exact"
+            ],
+            "truth_design": "grid",
+            "truth_margin_fraction": 0.1,
+            "truth_points_per_axis": 3
+          },
+          "metrics": [
+            "classification",
+            "bias",
+            "coverage",
+            "width",
+            "resolution",
+            "posterior",
+            "exact_reference",
+            "pairwise",
+            "reweighting",
+            "normalization"
+          ],
+          "model": {
+            "activation": "relu",
+            "blocks": 3,
+            "dropout": 0.0,
+            "hidden": [
+              32,
+              32
+            ],
+            "kind": "mlp",
+            "width": 64
+          },
+          "output": "/mnt/data/reference_mixed",
+          "plots": [
+            "training",
+            "prior",
+            "inference",
+            "pairwise",
+            "reweighting",
+            "showcase"
+          ],
+          "plotting": {
+            "bins": 30,
+            "dpi": 140,
+            "max_inference_cases": 200,
+            "prior_points": 1000
+          },
+          "priors": {
+            "exponential": {
+              "family": "exponential"
+            },
+            "grid": {
+              "family": "grid"
+            },
+            "normal": {
+              "family": "normal"
+            },
+            "uniform": {
+              "family": "uniform"
+            }
+          },
+          "problem": {
+            "dimension": 2,
+            "fixed": {},
+            "fixed_mean": 5.0,
+            "fixed_std": 2.0,
+            "infer": [
+              "mean:*"
+            ],
+            "overrides": {},
+            "parameters": {
+              "mean": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 10.0,
+                "low": 0.0,
+                "normal_mean": 5.0,
+                "normal_std": 4.0
+              },
+              "std": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 4.0,
+                "low": 0.2,
+                "normal_mean": 2.0,
+                "normal_std": 0.7
+              }
+            }
+          },
+          "runtime": {
+            "cpu_threads": 1,
+            "deterministic": true,
+            "device": "cpu",
+            "parallel": "jobs",
+            "timeout_minutes": 60
+          },
+          "seed": 0,
+          "training": {
+            "batch_size": 128,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "checkpoint": "last",
+            "epochs": 2,
+            "epsilon": 1e-08,
+            "evaluation_batch_size": 2048,
+            "gradient_clip": null,
+            "learning_rate": 0.001,
+            "optimizer": "adam",
+            "precision": "off",
+            "verbose": true,
+            "weight_decay": 0.0
+          },
+          "verification": {
+            "directions": 4,
+            "marginal_samples": 128,
+            "normalization_design": "diagonal",
+            "normalization_on_grid": true,
+            "normalization_thetas": 4,
+            "pair_design": "grid",
+            "pairs": 4,
+            "samples_per_endpoint": 32,
+            "seed": 2027,
+            "showcase": {
+              "bins": 30,
+              "samples": 256,
+              "source_fraction": 0.3,
+              "target_fraction": 0.7
+            },
+            "source_samples": 64,
+            "target_samples": 64
+          }
+        },
+        "experiment": "gaussian-prior-dependence",
+        "id": "482bee5641cecbba15f75fda",
+        "member": {
+          "name": "normal-r0",
+          "prior": "normal",
+          "replica": 0
+        },
+        "numpy": "2.3.5",
+        "python": "3.13.5",
+        "source_archive": "0864d1a9133f5d6247f41bbc",
+        "started": "2026-09-08T10:37:38.404236+00:00",
+        "workload": {
+          "candidate_count_upper_bound": 512,
+          "candidate_design": "sobol",
+          "errors": [],
+          "estimated_inference_bytes": 37808,
+          "inference_cases": 9,
+          "inference_model_evaluations": 69255,
+          "inferred_parameters": [
+            "mean:0",
+            "mean:1"
+          ],
+          "network_inputs": 4,
+          "observation_dimension": 2,
+          "training_rows": 1024,
+          "truth_design": "grid",
+          "warnings": [
+            "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+            "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+          ]
+        }
+      },
+      "metrics": {
+        "bias": {
+          "mean_absolute": 3.5162799461848206,
+          "mean_signed": -3.5162799461848206,
+          "per_axis_absolute": [
+            2.9267067768507533,
+            4.1058531155188875
+          ],
+          "per_axis_signed": [
+            -2.9267067768507533,
+            -4.1058531155188875
+          ],
+          "rmse": 4.1770722744028825
+        },
+        "classification": {
+          "accuracy": 0.59375,
+          "auc": 0.6351318359375,
+          "bce": 0.6727438585408463
+        },
+        "coverage": {
+          "cases": 9,
+          "interpretation": "empirical true-parameter membership on supplied truths",
+          "joint_density": [
+            0.2222222222222222,
+            0.8888888888888888
+          ],
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "projected_mean": [
+            0.5,
+            1.0
+          ],
+          "projected_per_axis": [
+            [
+              0.4444444444444444,
+              0.5555555555555556
+            ],
+            [
+              1.0,
+              1.0
+            ]
+          ]
+        },
+        "exact_reference": {
+          "bias": {
+            "mean_absolute": 0.4291907048059834,
+            "mean_signed": -0.05518177110287878,
+            "per_axis_absolute": [
+              0.3893644056386418,
+              0.4690170039733251
+            ],
+            "per_axis_signed": [
+              0.005371963812245263,
+              -0.11573550601800282
+            ],
+            "rmse": 0.5390626364376261
+          },
+          "caveat": "Exact likelihood, but same numerical candidate approximation; not an analytic continuous HLD.",
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.5555555555555556,
+              1.0
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.6666666666666666,
+              0.9444444444444444
+            ],
+            "projected_per_axis": [
+              [
+                0.7777777777777778,
+                0.5555555555555556
+              ],
+              [
+                1.0,
+                0.8888888888888888
+              ]
+            ]
+          },
+          "enabled": true,
+          "learned_vs_exact_mode_rmse": 4.202189522978134,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              1.0938795502814982,
+              1.9098654789850116
+            ],
+            "per_axis": [
+              [
+                1.0948989184366331,
+                1.092860182126363
+              ],
+              [
+                1.8715881961915228,
+                1.9481427617785003
+              ]
+            ]
+          }
+        },
+        "normalization": {
+          "caveat": "Monte Carlo check under each model's own training-prior evidence; finite-sample error remains.",
+          "expected_log_mean": 0.0,
+          "log_mean_ratio_per_theta": [
+            0.1702453181444703,
+            0.13250711294920858,
+            -0.0034096030309171965,
+            -0.22667955274504692
+          ],
+          "mean_absolute_log_error": 0.13321039671741075
+        },
+        "pairwise": {
+          "distance_definition": "Euclidean distance in raw inferred parameter coordinates",
+          "mae_pooled": 5.573207589691757,
+          "max_absolute": 21.320090574026104,
+          "median_pair_rmse": 6.1597102558284424,
+          "per_pair_rmse": [
+            2.7343715225482246,
+            11.15284560141419,
+            9.58504898910866,
+            1.2551589976811155
+          ],
+          "rmse_pooled": 7.505187220605816,
+          "spearman_distance_rmse": 1.0,
+          "worst_pair_rmse": 11.15284560141419
+        },
+        "posterior": {
+          "bias": {
+            "mean_absolute": 2.6768920280867152,
+            "mean_signed": -2.427429012954235,
+            "per_axis_absolute": [
+              2.5797088543574014,
+              2.774075201816029
+            ],
+            "per_axis_signed": [
+              -2.080782824092441,
+              -2.774075201816029
+            ],
+            "rmse": 3.242039694064026
+          },
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.2222222222222222,
+              0.7777777777777778
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.5555555555555556,
+              0.9444444444444444
+            ],
+            "projected_per_axis": [
+              [
+                0.5555555555555556,
+                0.5555555555555556
+              ],
+              [
+                0.8888888888888888,
+                1.0
+              ]
+            ]
+          },
+          "enabled": true,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              5.319816078369816,
+              7.876513202881648
+            ],
+            "per_axis": [
+              [
+                4.957045462810331,
+                5.682586693929301
+              ],
+              [
+                7.635554839753443,
+                8.117471566009852
+              ]
+            ]
+          }
+        },
+        "resolution": {
+          "base_measure": "Lebesgue",
+          "candidate_count": 512,
+          "candidate_ess_fraction_median": 0.3648744741520717,
+          "candidate_ess_median": 186.8157307658607,
+          "candidate_ess_min": 61.44285773184425,
+          "mean_enclosed_mass": [
+            0.6824096644662868,
+            0.950359720923179
+          ],
+          "warning": "Small candidate ESS can signal inadequate resolution; increase candidates and compare exact_reference."
+        },
+        "reweighting": {
+          "median_ess": 63.77857451984468,
+          "median_ess_fraction": 0.9965402268725732,
+          "median_exact_sliced_w1": 1.5880759906286464,
+          "median_sliced_w1": 3.793248534228563,
+          "median_unweighted_sliced_w1": 3.8781234879350066,
+          "spearman_distance_w1": 1.0,
+          "worst_sliced_w1": 5.1177116280605155
+        },
+        "width": {
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "mean": [
+            5.254628628699316,
+            7.858948520384729
+          ],
+          "per_axis": [
+            [
+              5.2393533661961555,
+              5.2699038912024765
+            ],
+            [
+              7.735953449375099,
+              7.981943591394359
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "run": {
+        "backend": {
+          "cpu_threads": 1,
+          "cuda": null,
+          "deterministic": true,
+          "device_name": "cpu",
+          "device_type": "cpu",
+          "torch": "2.10.0+cpu",
+          "world_size": 1
+        },
+        "changed": "problem.infer",
+        "config": {
+          "application": "gaussian:GaussianExperiment",
+          "cohort": {
+            "priors": [
+              "uniform",
+              "normal"
+            ],
+            "replicas": 1
+          },
+          "data": {
+            "test_size": 256,
+            "train_size": 1024,
+            "validation_size": 256
+          },
+          "inference": {
+            "align_truths_to_grid": true,
+            "candidate_count": 512,
+            "candidate_design": "sobol",
+            "candidate_points_per_axis": 200,
+            "diagnostic_cases": 2,
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "max_candidate_points": 2000000,
+            "max_grid_truths": 1000000,
+            "max_model_evaluations": 2000000000000,
+            "max_saved_bytes": 8000000000,
+            "native_grid_prior": true,
+            "observations": 15,
+            "repeats": 1,
+            "retain": "diagnostic",
+            "seed": 2026,
+            "sobol_truths": 65536,
+            "targets": [
+              "ratio",
+              "posterior",
+              "exact"
+            ],
+            "truth_design": "grid",
+            "truth_margin_fraction": 0.1,
+            "truth_points_per_axis": 3
+          },
+          "metrics": [
+            "classification",
+            "bias",
+            "coverage",
+            "width",
+            "resolution",
+            "posterior",
+            "exact_reference",
+            "pairwise",
+            "reweighting",
+            "normalization"
+          ],
+          "model": {
+            "activation": "relu",
+            "blocks": 3,
+            "dropout": 0.0,
+            "hidden": [
+              32,
+              32
+            ],
+            "kind": "mlp",
+            "width": 64
+          },
+          "output": "/mnt/data/reference_mixed",
+          "plots": [
+            "training",
+            "prior",
+            "inference",
+            "pairwise",
+            "reweighting",
+            "showcase"
+          ],
+          "plotting": {
+            "bins": 30,
+            "dpi": 140,
+            "max_inference_cases": 200,
+            "prior_points": 1000
+          },
+          "priors": {
+            "exponential": {
+              "family": "exponential"
+            },
+            "grid": {
+              "family": "grid"
+            },
+            "normal": {
+              "family": "normal"
+            },
+            "uniform": {
+              "family": "uniform"
+            }
+          },
+          "problem": {
+            "dimension": 2,
+            "fixed": {},
+            "fixed_mean": 5.0,
+            "fixed_std": 2.0,
+            "infer": [
+              "mean:*",
+              "std:1"
+            ],
+            "overrides": {},
+            "parameters": {
+              "mean": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 10.0,
+                "low": 0.0,
+                "normal_mean": 5.0,
+                "normal_std": 4.0
+              },
+              "std": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 4.0,
+                "low": 0.2,
+                "normal_mean": 2.0,
+                "normal_std": 0.7
+              }
+            }
+          },
+          "runtime": {
+            "cpu_threads": 1,
+            "deterministic": true,
+            "device": "cpu",
+            "parallel": "jobs",
+            "timeout_minutes": 60
+          },
+          "seed": 0,
+          "training": {
+            "batch_size": 128,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "checkpoint": "last",
+            "epochs": 2,
+            "epsilon": 1e-08,
+            "evaluation_batch_size": 2048,
+            "gradient_clip": null,
+            "learning_rate": 0.001,
+            "optimizer": "adam",
+            "precision": "off",
+            "verbose": true,
+            "weight_decay": 0.0
+          },
+          "verification": {
+            "directions": 4,
+            "marginal_samples": 128,
+            "normalization_design": "diagonal",
+            "normalization_on_grid": true,
+            "normalization_thetas": 4,
+            "pair_design": "grid",
+            "pairs": 4,
+            "samples_per_endpoint": 32,
+            "seed": 2027,
+            "showcase": {
+              "bins": 30,
+              "samples": 256,
+              "source_fraction": 0.3,
+              "target_fraction": 0.7
+            },
+            "source_samples": 64,
+            "target_samples": 64
+          }
+        },
+        "experiment": "gaussian-prior-dependence",
+        "id": "1f644f662d2f30102fc76055",
+        "member": {
+          "name": "uniform-r0",
+          "prior": "uniform",
+          "replica": 0
+        },
+        "numpy": "2.3.5",
+        "python": "3.13.5",
+        "source_archive": "0864d1a9133f5d6247f41bbc",
+        "started": "2026-09-08T10:37:41.008639+00:00",
+        "workload": {
+          "candidate_count_upper_bound": 512,
+          "candidate_design": "sobol",
+          "errors": [],
+          "estimated_inference_bytes": 53284,
+          "inference_cases": 27,
+          "inference_model_evaluations": 207765,
+          "inferred_parameters": [
+            "mean:0",
+            "mean:1",
+            "std:1"
+          ],
+          "network_inputs": 5,
+          "observation_dimension": 2,
+          "training_rows": 1024,
+          "truth_design": "grid",
+          "warnings": [
+            "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+            "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+          ]
+        }
+      },
+      "metrics": {
+        "bias": {
+          "mean_absolute": 3.098591555599813,
+          "mean_signed": -1.748999602816723,
+          "per_axis_absolute": [
+            2.8222575816843243,
+            4.78602019780212,
+            1.687496887312995
+          ],
+          "per_axis_signed": [
+            -2.290098306205538,
+            -4.644397389557627,
+            1.687496887312995
+          ],
+          "rmse": 4.137451743992659
+        },
+        "classification": {
+          "accuracy": 0.44140625,
+          "auc": 0.4376220703125,
+          "bce": 0.7147919950613509
+        },
+        "coverage": {
+          "cases": 27,
+          "interpretation": "empirical true-parameter membership on supplied truths",
+          "joint_density": [
+            0.1111111111111111,
+            0.2962962962962963
+          ],
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "projected_mean": [
+            0.7160493827160493,
+            0.9506172839506173
+          ],
+          "projected_per_axis": [
+            [
+              0.8888888888888888,
+              0.48148148148148145,
+              0.7777777777777778
+            ],
+            [
+              1.0,
+              0.8518518518518519,
+              1.0
+            ]
+          ]
+        },
+        "exact_reference": {
+          "bias": {
+            "mean_absolute": 0.47920813250504896,
+            "mean_signed": -0.045698606075696,
+            "per_axis_absolute": [
+              0.49489543380008805,
+              0.6267397674145522,
+              0.3159891963005066
+            ],
+            "per_axis_signed": [
+              0.14984832662675115,
+              -0.16777570214536455,
+              -0.11916844270847461
+            ],
+            "rmse": 0.6167820447249903
+          },
+          "caveat": "Exact likelihood, but same numerical candidate approximation; not an analytic continuous HLD.",
+          "coverage": {
+            "cases": 27,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.5925925925925926,
+              0.8518518518518519
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.35802469135802467,
+              0.7407407407407407
+            ],
+            "projected_per_axis": [
+              [
+                0.37037037037037035,
+                0.3333333333333333,
+                0.37037037037037035
+              ],
+              [
+                0.7777777777777778,
+                0.8148148148148148,
+                0.6296296296296297
+              ]
+            ]
+          },
+          "enabled": true,
+          "learned_vs_exact_mode_rmse": 4.068679754895448,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              0.7194422893226147,
+              1.4411082325710192
+            ],
+            "per_axis": [
+              [
+                0.6854066738375911,
+                0.873588570152168,
+                0.599331623978085
+              ],
+              [
+                1.5225934335203082,
+                1.7510289156602488,
+                1.0497023485325
+              ]
+            ]
+          }
+        },
+        "normalization": {
+          "caveat": "Monte Carlo check under each model's own training-prior evidence; finite-sample error remains.",
+          "expected_log_mean": 0.0,
+          "log_mean_ratio_per_theta": [
+            0.003914495370184845,
+            0.005152552617846418,
+            -0.20638007292377125,
+            -0.5547866189634938
+          ],
+          "mean_absolute_log_error": 0.19255843496882408
+        },
+        "pairwise": {
+          "distance_definition": "Euclidean distance in raw inferred parameter coordinates",
+          "mae_pooled": 35.138360055625256,
+          "max_absolute": 459.04761528607673,
+          "median_pair_rmse": 39.440392130628936,
+          "per_pair_rmse": [
+            65.56279828575903,
+            13.317985975498843,
+            156.44630127976234,
+            1.522168989991495
+          ],
+          "rmse_pooled": 85.07880384099052,
+          "spearman_distance_rmse": 0.39999999999999997,
+          "worst_pair_rmse": 156.44630127976234
+        },
+        "posterior": {
+          "bias": {
+            "mean_absolute": 3.098591555599813,
+            "mean_signed": -1.748999602816723,
+            "per_axis_absolute": [
+              2.8222575816843243,
+              4.78602019780212,
+              1.687496887312995
+            ],
+            "per_axis_signed": [
+              -2.290098306205538,
+              -4.644397389557627,
+              1.687496887312995
+            ],
+            "rmse": 4.137451743992659
+          },
+          "coverage": {
+            "cases": 27,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.1111111111111111,
+              0.2962962962962963
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.7160493827160493,
+              0.9506172839506173
+            ],
+            "projected_per_axis": [
+              [
+                0.8888888888888888,
+                0.48148148148148145,
+                0.7777777777777778
+              ],
+              [
+                1.0,
+                0.8518518518518519,
+                1.0
+              ]
+            ]
+          },
+          "enabled": true,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              5.344899384212899,
+              7.2015327307407135
+            ],
+            "per_axis": [
+              [
+                7.761034731028809,
+                5.137776739205475,
+                3.1358866824044123
+              ],
+              [
+                9.741169207418958,
+                8.103474671366039,
+                3.759954313437144
+              ]
+            ]
+          }
+        },
+        "resolution": {
+          "base_measure": "Lebesgue",
+          "candidate_count": 512,
+          "candidate_ess_fraction_median": 0.2206549644431114,
+          "candidate_ess_median": 112.97534179487303,
+          "candidate_ess_min": 21.756190861465903,
+          "mean_enclosed_mass": [
+            0.6827102412214691,
+            0.9504335416853613
+          ],
+          "warning": "Small candidate ESS can signal inadequate resolution; increase candidates and compare exact_reference."
+        },
+        "reweighting": {
+          "median_ess": 62.93014461880026,
+          "median_ess_fraction": 0.9832835096687541,
+          "median_exact_sliced_w1": 2.0972345442341527,
+          "median_sliced_w1": 3.9865589850935477,
+          "median_unweighted_sliced_w1": 4.10370243386307,
+          "spearman_distance_w1": 1.0,
+          "worst_sliced_w1": 4.8044969461750515
+        },
+        "width": {
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "mean": [
+            5.344899384212899,
+            7.2015327307407135
+          ],
+          "per_axis": [
+            [
+              7.761034731028809,
+              5.137776739205475,
+              3.1358866824044123
+            ],
+            [
+              9.741169207418958,
+              8.103474671366039,
+              3.759954313437144
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "run": {
+        "backend": {
+          "cpu_threads": 1,
+          "cuda": null,
+          "deterministic": true,
+          "device_name": "cpu",
+          "device_type": "cpu",
+          "torch": "2.10.0+cpu",
+          "world_size": 1
+        },
+        "changed": "problem.infer",
+        "config": {
+          "application": "gaussian:GaussianExperiment",
+          "cohort": {
+            "priors": [
+              "uniform",
+              "normal"
+            ],
+            "replicas": 1
+          },
+          "data": {
+            "test_size": 256,
+            "train_size": 1024,
+            "validation_size": 256
+          },
+          "inference": {
+            "align_truths_to_grid": true,
+            "candidate_count": 512,
+            "candidate_design": "sobol",
+            "candidate_points_per_axis": 200,
+            "diagnostic_cases": 2,
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "max_candidate_points": 2000000,
+            "max_grid_truths": 1000000,
+            "max_model_evaluations": 2000000000000,
+            "max_saved_bytes": 8000000000,
+            "native_grid_prior": true,
+            "observations": 15,
+            "repeats": 1,
+            "retain": "diagnostic",
+            "seed": 2026,
+            "sobol_truths": 65536,
+            "targets": [
+              "ratio",
+              "posterior",
+              "exact"
+            ],
+            "truth_design": "grid",
+            "truth_margin_fraction": 0.1,
+            "truth_points_per_axis": 3
+          },
+          "metrics": [
+            "classification",
+            "bias",
+            "coverage",
+            "width",
+            "resolution",
+            "posterior",
+            "exact_reference",
+            "pairwise",
+            "reweighting",
+            "normalization"
+          ],
+          "model": {
+            "activation": "relu",
+            "blocks": 3,
+            "dropout": 0.0,
+            "hidden": [
+              32,
+              32
+            ],
+            "kind": "mlp",
+            "width": 64
+          },
+          "output": "/mnt/data/reference_mixed",
+          "plots": [
+            "training",
+            "prior",
+            "inference",
+            "pairwise",
+            "reweighting",
+            "showcase"
+          ],
+          "plotting": {
+            "bins": 30,
+            "dpi": 140,
+            "max_inference_cases": 200,
+            "prior_points": 1000
+          },
+          "priors": {
+            "exponential": {
+              "family": "exponential"
+            },
+            "grid": {
+              "family": "grid"
+            },
+            "normal": {
+              "family": "normal"
+            },
+            "uniform": {
+              "family": "uniform"
+            }
+          },
+          "problem": {
+            "dimension": 2,
+            "fixed": {},
+            "fixed_mean": 5.0,
+            "fixed_std": 2.0,
+            "infer": [
+              "mean:*",
+              "std:1"
+            ],
+            "overrides": {},
+            "parameters": {
+              "mean": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 10.0,
+                "low": 0.0,
+                "normal_mean": 5.0,
+                "normal_std": 4.0
+              },
+              "std": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 4.0,
+                "low": 0.2,
+                "normal_mean": 2.0,
+                "normal_std": 0.7
+              }
+            }
+          },
+          "runtime": {
+            "cpu_threads": 1,
+            "deterministic": true,
+            "device": "cpu",
+            "parallel": "jobs",
+            "timeout_minutes": 60
+          },
+          "seed": 0,
+          "training": {
+            "batch_size": 128,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "checkpoint": "last",
+            "epochs": 2,
+            "epsilon": 1e-08,
+            "evaluation_batch_size": 2048,
+            "gradient_clip": null,
+            "learning_rate": 0.001,
+            "optimizer": "adam",
+            "precision": "off",
+            "verbose": true,
+            "weight_decay": 0.0
+          },
+          "verification": {
+            "directions": 4,
+            "marginal_samples": 128,
+            "normalization_design": "diagonal",
+            "normalization_on_grid": true,
+            "normalization_thetas": 4,
+            "pair_design": "grid",
+            "pairs": 4,
+            "samples_per_endpoint": 32,
+            "seed": 2027,
+            "showcase": {
+              "bins": 30,
+              "samples": 256,
+              "source_fraction": 0.3,
+              "target_fraction": 0.7
+            },
+            "source_samples": 64,
+            "target_samples": 64
+          }
+        },
+        "experiment": "gaussian-prior-dependence",
+        "id": "ae61f9fca5d5da387b6753d8",
+        "member": {
+          "name": "normal-r0",
+          "prior": "normal",
+          "replica": 0
+        },
+        "numpy": "2.3.5",
+        "python": "3.13.5",
+        "source_archive": "0864d1a9133f5d6247f41bbc",
+        "started": "2026-09-08T10:37:46.642205+00:00",
+        "workload": {
+          "candidate_count_upper_bound": 512,
+          "candidate_design": "sobol",
+          "errors": [],
+          "estimated_inference_bytes": 53284,
+          "inference_cases": 27,
+          "inference_model_evaluations": 207765,
+          "inferred_parameters": [
+            "mean:0",
+            "mean:1",
+            "std:1"
+          ],
+          "network_inputs": 5,
+          "observation_dimension": 2,
+          "training_rows": 1024,
+          "truth_design": "grid",
+          "warnings": [
+            "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+            "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+          ]
+        }
+      },
+      "metrics": {
+        "bias": {
+          "mean_absolute": 3.4780292466374827,
+          "mean_signed": -0.6552638374269009,
+          "per_axis_absolute": [
+            4.2341481138158725,
+            4.540354103815776,
+            1.659585522280799
+          ],
+          "per_axis_signed": [
+            4.2341481138158725,
+            -4.540354103815776,
+            -1.659585522280799
+          ],
+          "rmse": 4.612352314191992
+        },
+        "classification": {
+          "accuracy": 0.59375,
+          "auc": 0.647216796875,
+          "bce": 0.680660441610454
+        },
+        "coverage": {
+          "cases": 27,
+          "interpretation": "empirical true-parameter membership on supplied truths",
+          "joint_density": [
+            0.3333333333333333,
+            0.8888888888888888
+          ],
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "projected_mean": [
+            0.8395061728395061,
+            1.0
+          ],
+          "projected_per_axis": [
+            [
+              1.0,
+              0.5555555555555556,
+              0.9629629629629629
+            ],
+            [
+              1.0,
+              1.0,
+              1.0
+            ]
+          ]
+        },
+        "exact_reference": {
+          "bias": {
+            "mean_absolute": 0.47920813250504896,
+            "mean_signed": -0.045698606075696,
+            "per_axis_absolute": [
+              0.49489543380008805,
+              0.6267397674145522,
+              0.3159891963005066
+            ],
+            "per_axis_signed": [
+              0.14984832662675115,
+              -0.16777570214536455,
+              -0.11916844270847461
+            ],
+            "rmse": 0.6167820447249903
+          },
+          "caveat": "Exact likelihood, but same numerical candidate approximation; not an analytic continuous HLD.",
+          "coverage": {
+            "cases": 27,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.5925925925925926,
+              0.8518518518518519
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.35802469135802467,
+              0.7407407407407407
+            ],
+            "projected_per_axis": [
+              [
+                0.37037037037037035,
+                0.3333333333333333,
+                0.37037037037037035
+              ],
+              [
+                0.7777777777777778,
+                0.8148148148148148,
+                0.6296296296296297
+              ]
+            ]
+          },
+          "enabled": true,
+          "learned_vs_exact_mode_rmse": 4.493160292184465,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              0.7194422893226147,
+              1.4411082325710192
+            ],
+            "per_axis": [
+              [
+                0.6854066738375911,
+                0.873588570152168,
+                0.599331623978085
+              ],
+              [
+                1.5225934335203082,
+                1.7510289156602488,
+                1.0497023485325
+              ]
+            ]
+          }
+        },
+        "normalization": {
+          "caveat": "Monte Carlo check under each model's own training-prior evidence; finite-sample error remains.",
+          "expected_log_mean": 0.0,
+          "log_mean_ratio_per_theta": [
+            -0.2015252037105988,
+            0.020395089275149658,
+            -0.018776449920633986,
+            -0.14899502894065542
+          ],
+          "mean_absolute_log_error": 0.09742294296175946
+        },
+        "pairwise": {
+          "distance_definition": "Euclidean distance in raw inferred parameter coordinates",
+          "mae_pooled": 35.13585355793491,
+          "max_absolute": 458.921695139373,
+          "median_pair_rmse": 39.429877423284154,
+          "per_pair_rmse": [
+            65.60132240111699,
+            13.258432445451323,
+            156.27813450379355,
+            1.5513514866248423
+          ],
+          "rmse_pooled": 85.0067373022673,
+          "spearman_distance_rmse": 0.39999999999999997,
+          "worst_pair_rmse": 156.27813450379355
+        },
+        "posterior": {
+          "bias": {
+            "mean_absolute": 2.499385262253108,
+            "mean_signed": -0.9491034991763256,
+            "per_axis_absolute": [
+              2.3879390645910195,
+              4.0255450747079315,
+              1.0846716474603724
+            ],
+            "per_axis_signed": [
+              1.4752563547205042,
+              -4.0255450747079315,
+              -0.2970217775415491
+            ],
+            "rmse": 3.5151431362590775
+          },
+          "coverage": {
+            "cases": 27,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.2962962962962963,
+              0.5555555555555556
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.7037037037037037,
+              0.8641975308641975
+            ],
+            "projected_per_axis": [
+              [
+                1.0,
+                0.6666666666666666,
+                0.4444444444444444
+              ],
+              [
+                1.0,
+                0.8888888888888888,
+                0.7037037037037037
+              ]
+            ]
+          },
+          "enabled": true,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              5.5362153153314635,
+              7.12170846613101
+            ],
+            "per_axis": [
+              [
+                7.48040991904283,
+                6.804328322686531,
+                2.323907704265029
+              ],
+              [
+                8.927622779927871,
+                9.137578782935938,
+                3.2999238355292215
+              ]
+            ]
+          }
+        },
+        "resolution": {
+          "base_measure": "Lebesgue",
+          "candidate_count": 512,
+          "candidate_ess_fraction_median": 0.29699937580209473,
+          "candidate_ess_median": 152.0636804106725,
+          "candidate_ess_min": 92.78767220585635,
+          "mean_enclosed_mass": [
+            0.6813660727087184,
+            0.9502486102319511
+          ],
+          "warning": "Small candidate ESS can signal inadequate resolution; increase candidates and compare exact_reference."
+        },
+        "reweighting": {
+          "median_ess": 63.58307204522012,
+          "median_ess_fraction": 0.9934855007065644,
+          "median_exact_sliced_w1": 2.0972345442341527,
+          "median_sliced_w1": 4.003780565790735,
+          "median_unweighted_sliced_w1": 4.10370243386307,
+          "spearman_distance_w1": 1.0,
+          "worst_sliced_w1": 4.831854127002846
+        },
+        "width": {
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "mean": [
+            5.63882770575583,
+            7.139636889835934
+          ],
+          "per_axis": [
+            [
+              7.436818843155548,
+              5.875761829868511,
+              3.603902444243431
+            ],
+            [
+              8.643539796548861,
+              8.987973844287572,
+              3.7873970286713705
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "run": {
+        "backend": {
+          "cpu_threads": 1,
+          "cuda": null,
+          "deterministic": true,
+          "device_name": "cpu",
+          "device_type": "cpu",
+          "torch": "2.10.0+cpu",
+          "world_size": 1
+        },
+        "changed": "model.kind",
+        "config": {
+          "application": "gaussian:GaussianExperiment",
+          "cohort": {
+            "priors": [
+              "uniform",
+              "normal"
+            ],
+            "replicas": 1
+          },
+          "data": {
+            "test_size": 256,
+            "train_size": 1024,
+            "validation_size": 256
+          },
+          "inference": {
+            "align_truths_to_grid": true,
+            "candidate_count": 512,
+            "candidate_design": "sobol",
+            "candidate_points_per_axis": 200,
+            "diagnostic_cases": 2,
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "max_candidate_points": 2000000,
+            "max_grid_truths": 1000000,
+            "max_model_evaluations": 2000000000000,
+            "max_saved_bytes": 8000000000,
+            "native_grid_prior": true,
+            "observations": 15,
+            "repeats": 1,
+            "retain": "diagnostic",
+            "seed": 2026,
+            "sobol_truths": 65536,
+            "targets": [
+              "ratio",
+              "posterior",
+              "exact"
+            ],
+            "truth_design": "grid",
+            "truth_margin_fraction": 0.1,
+            "truth_points_per_axis": 3
+          },
+          "metrics": [
+            "classification",
+            "bias",
+            "coverage",
+            "width",
+            "resolution",
+            "posterior",
+            "exact_reference",
+            "pairwise",
+            "reweighting",
+            "normalization"
+          ],
+          "model": {
+            "activation": "relu",
+            "blocks": 3,
+            "dropout": 0.0,
+            "hidden": [
+              32,
+              32
+            ],
+            "kind": "residual",
+            "width": 64
+          },
+          "output": "/mnt/data/reference_mixed",
+          "plots": [
+            "training",
+            "prior",
+            "inference",
+            "pairwise",
+            "reweighting",
+            "showcase"
+          ],
+          "plotting": {
+            "bins": 30,
+            "dpi": 140,
+            "max_inference_cases": 200,
+            "prior_points": 1000
+          },
+          "priors": {
+            "exponential": {
+              "family": "exponential"
+            },
+            "grid": {
+              "family": "grid"
+            },
+            "normal": {
+              "family": "normal"
+            },
+            "uniform": {
+              "family": "uniform"
+            }
+          },
+          "problem": {
+            "dimension": 2,
+            "fixed": {},
+            "fixed_mean": 5.0,
+            "fixed_std": 2.0,
+            "infer": [
+              "mean:*"
+            ],
+            "overrides": {},
+            "parameters": {
+              "mean": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 10.0,
+                "low": 0.0,
+                "normal_mean": 5.0,
+                "normal_std": 4.0
+              },
+              "std": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 4.0,
+                "low": 0.2,
+                "normal_mean": 2.0,
+                "normal_std": 0.7
+              }
+            }
+          },
+          "runtime": {
+            "cpu_threads": 1,
+            "deterministic": true,
+            "device": "cpu",
+            "parallel": "jobs",
+            "timeout_minutes": 60
+          },
+          "seed": 0,
+          "training": {
+            "batch_size": 128,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "checkpoint": "last",
+            "epochs": 2,
+            "epsilon": 1e-08,
+            "evaluation_batch_size": 2048,
+            "gradient_clip": null,
+            "learning_rate": 0.001,
+            "optimizer": "adam",
+            "precision": "off",
+            "verbose": true,
+            "weight_decay": 0.0
+          },
+          "verification": {
+            "directions": 4,
+            "marginal_samples": 128,
+            "normalization_design": "diagonal",
+            "normalization_on_grid": true,
+            "normalization_thetas": 4,
+            "pair_design": "grid",
+            "pairs": 4,
+            "samples_per_endpoint": 32,
+            "seed": 2027,
+            "showcase": {
+              "bins": 30,
+              "samples": 256,
+              "source_fraction": 0.3,
+              "target_fraction": 0.7
+            },
+            "source_samples": 64,
+            "target_samples": 64
+          }
+        },
+        "experiment": "gaussian-prior-dependence",
+        "id": "003d2c6ae313a5f975669234",
+        "member": {
+          "name": "uniform-r0",
+          "prior": "uniform",
+          "replica": 0
+        },
+        "numpy": "2.3.5",
+        "python": "3.13.5",
+        "source_archive": "0864d1a9133f5d6247f41bbc",
+        "started": "2026-09-08T10:37:51.299227+00:00",
+        "workload": {
+          "candidate_count_upper_bound": 512,
+          "candidate_design": "sobol",
+          "errors": [],
+          "estimated_inference_bytes": 37808,
+          "inference_cases": 9,
+          "inference_model_evaluations": 69255,
+          "inferred_parameters": [
+            "mean:0",
+            "mean:1"
+          ],
+          "network_inputs": 4,
+          "observation_dimension": 2,
+          "training_rows": 1024,
+          "truth_design": "grid",
+          "warnings": [
+            "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+            "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+          ]
+        }
+      },
+      "metrics": {
+        "bias": {
+          "mean_absolute": 2.0367254697614245,
+          "mean_signed": 0.6943163325389227,
+          "per_axis_absolute": [
+            1.476701898707284,
+            2.596749040815565
+          ],
+          "per_axis_signed": [
+            -1.20811637573772,
+            2.596749040815565
+          ],
+          "rmse": 2.9914339054624177
+        },
+        "classification": {
+          "accuracy": 0.53125,
+          "auc": 0.77362060546875,
+          "bce": 0.6254633454226035
+        },
+        "coverage": {
+          "cases": 9,
+          "interpretation": "empirical true-parameter membership on supplied truths",
+          "joint_density": [
+            0.3333333333333333,
+            0.5555555555555556
+          ],
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "projected_mean": [
+            0.4444444444444444,
+            0.8333333333333334
+          ],
+          "projected_per_axis": [
+            [
+              0.4444444444444444,
+              0.4444444444444444
+            ],
+            [
+              0.8888888888888888,
+              0.7777777777777778
+            ]
+          ]
+        },
+        "exact_reference": {
+          "bias": {
+            "mean_absolute": 0.4291907048059834,
+            "mean_signed": -0.05518177110287878,
+            "per_axis_absolute": [
+              0.3893644056386418,
+              0.4690170039733251
+            ],
+            "per_axis_signed": [
+              0.005371963812245263,
+              -0.11573550601800282
+            ],
+            "rmse": 0.5390626364376261
+          },
+          "caveat": "Exact likelihood, but same numerical candidate approximation; not an analytic continuous HLD.",
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.5555555555555556,
+              1.0
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.6666666666666666,
+              0.9444444444444444
+            ],
+            "projected_per_axis": [
+              [
+                0.7777777777777778,
+                0.5555555555555556
+              ],
+              [
+                1.0,
+                0.8888888888888888
+              ]
+            ]
+          },
+          "enabled": true,
+          "learned_vs_exact_mode_rmse": 2.9614252348370678,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              1.0938795502814982,
+              1.9098654789850116
+            ],
+            "per_axis": [
+              [
+                1.0948989184366331,
+                1.092860182126363
+              ],
+              [
+                1.8715881961915228,
+                1.9481427617785003
+              ]
+            ]
+          }
+        },
+        "normalization": {
+          "caveat": "Monte Carlo check under each model's own training-prior evidence; finite-sample error remains.",
+          "expected_log_mean": 0.0,
+          "log_mean_ratio_per_theta": [
+            -1.0681517300692884,
+            -0.6348073676085475,
+            -0.4599955700852538,
+            -0.5184624383929091
+          ],
+          "mean_absolute_log_error": 0.6703542765389997
+        },
+        "pairwise": {
+          "distance_definition": "Euclidean distance in raw inferred parameter coordinates",
+          "mae_pooled": 5.271107451661973,
+          "max_absolute": 20.203715276718135,
+          "median_pair_rmse": 5.829794909281807,
+          "per_pair_rmse": [
+            2.406568640497576,
+            10.666621938497524,
+            9.253021178066037,
+            1.108256129371124
+          ],
+          "rmse_pooled": 7.183575515895449,
+          "spearman_distance_rmse": 1.0,
+          "worst_pair_rmse": 10.666621938497524
+        },
+        "posterior": {
+          "bias": {
+            "mean_absolute": 2.0367254697614245,
+            "mean_signed": 0.6943163325389227,
+            "per_axis_absolute": [
+              1.476701898707284,
+              2.596749040815565
+            ],
+            "per_axis_signed": [
+              -1.20811637573772,
+              2.596749040815565
+            ],
+            "rmse": 2.9914339054624177
+          },
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.3333333333333333,
+              0.5555555555555556
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.4444444444444444,
+              0.8333333333333334
+            ],
+            "projected_per_axis": [
+              [
+                0.4444444444444444,
+                0.4444444444444444
+              ],
+              [
+                0.8888888888888888,
+                0.7777777777777778
+              ]
+            ]
+          },
+          "enabled": true,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              2.653354525566101,
+              4.651360779586765
+            ],
+            "per_axis": [
+              [
+                2.762204474873013,
+                2.544504576259189
+              ],
+              [
+                4.558203546537293,
+                4.744518012636238
+              ]
+            ]
+          }
+        },
+        "resolution": {
+          "base_measure": "Lebesgue",
+          "candidate_count": 512,
+          "candidate_ess_fraction_median": 0.11069426994027252,
+          "candidate_ess_median": 56.67546620941953,
+          "candidate_ess_min": 5.868904725098811,
+          "mean_enclosed_mass": [
+            0.701966967915844,
+            0.9519072379005848
+          ],
+          "warning": "Small candidate ESS can signal inadequate resolution; increase candidates and compare exact_reference."
+        },
+        "reweighting": {
+          "median_ess": 59.30118926501784,
+          "median_ess_fraction": 0.9265810822659037,
+          "median_exact_sliced_w1": 1.5880759906286464,
+          "median_sliced_w1": 3.415145832001608,
+          "median_unweighted_sliced_w1": 3.8781234879350066,
+          "spearman_distance_w1": 1.0,
+          "worst_sliced_w1": 4.956509185947258
+        },
+        "width": {
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "mean": [
+            2.653354525566101,
+            4.651360779586765
+          ],
+          "per_axis": [
+            [
+              2.762204474873013,
+              2.544504576259189
+            ],
+            [
+              4.558203546537293,
+              4.744518012636238
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "run": {
+        "backend": {
+          "cpu_threads": 1,
+          "cuda": null,
+          "deterministic": true,
+          "device_name": "cpu",
+          "device_type": "cpu",
+          "torch": "2.10.0+cpu",
+          "world_size": 1
+        },
+        "changed": "model.kind",
+        "config": {
+          "application": "gaussian:GaussianExperiment",
+          "cohort": {
+            "priors": [
+              "uniform",
+              "normal"
+            ],
+            "replicas": 1
+          },
+          "data": {
+            "test_size": 256,
+            "train_size": 1024,
+            "validation_size": 256
+          },
+          "inference": {
+            "align_truths_to_grid": true,
+            "candidate_count": 512,
+            "candidate_design": "sobol",
+            "candidate_points_per_axis": 200,
+            "diagnostic_cases": 2,
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "max_candidate_points": 2000000,
+            "max_grid_truths": 1000000,
+            "max_model_evaluations": 2000000000000,
+            "max_saved_bytes": 8000000000,
+            "native_grid_prior": true,
+            "observations": 15,
+            "repeats": 1,
+            "retain": "diagnostic",
+            "seed": 2026,
+            "sobol_truths": 65536,
+            "targets": [
+              "ratio",
+              "posterior",
+              "exact"
+            ],
+            "truth_design": "grid",
+            "truth_margin_fraction": 0.1,
+            "truth_points_per_axis": 3
+          },
+          "metrics": [
+            "classification",
+            "bias",
+            "coverage",
+            "width",
+            "resolution",
+            "posterior",
+            "exact_reference",
+            "pairwise",
+            "reweighting",
+            "normalization"
+          ],
+          "model": {
+            "activation": "relu",
+            "blocks": 3,
+            "dropout": 0.0,
+            "hidden": [
+              32,
+              32
+            ],
+            "kind": "residual",
+            "width": 64
+          },
+          "output": "/mnt/data/reference_mixed",
+          "plots": [
+            "training",
+            "prior",
+            "inference",
+            "pairwise",
+            "reweighting",
+            "showcase"
+          ],
+          "plotting": {
+            "bins": 30,
+            "dpi": 140,
+            "max_inference_cases": 200,
+            "prior_points": 1000
+          },
+          "priors": {
+            "exponential": {
+              "family": "exponential"
+            },
+            "grid": {
+              "family": "grid"
+            },
+            "normal": {
+              "family": "normal"
+            },
+            "uniform": {
+              "family": "uniform"
+            }
+          },
+          "problem": {
+            "dimension": 2,
+            "fixed": {},
+            "fixed_mean": 5.0,
+            "fixed_std": 2.0,
+            "infer": [
+              "mean:*"
+            ],
+            "overrides": {},
+            "parameters": {
+              "mean": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 10.0,
+                "low": 0.0,
+                "normal_mean": 5.0,
+                "normal_std": 4.0
+              },
+              "std": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 4.0,
+                "low": 0.2,
+                "normal_mean": 2.0,
+                "normal_std": 0.7
+              }
+            }
+          },
+          "runtime": {
+            "cpu_threads": 1,
+            "deterministic": true,
+            "device": "cpu",
+            "parallel": "jobs",
+            "timeout_minutes": 60
+          },
+          "seed": 0,
+          "training": {
+            "batch_size": 128,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "checkpoint": "last",
+            "epochs": 2,
+            "epsilon": 1e-08,
+            "evaluation_batch_size": 2048,
+            "gradient_clip": null,
+            "learning_rate": 0.001,
+            "optimizer": "adam",
+            "precision": "off",
+            "verbose": true,
+            "weight_decay": 0.0
+          },
+          "verification": {
+            "directions": 4,
+            "marginal_samples": 128,
+            "normalization_design": "diagonal",
+            "normalization_on_grid": true,
+            "normalization_thetas": 4,
+            "pair_design": "grid",
+            "pairs": 4,
+            "samples_per_endpoint": 32,
+            "seed": 2027,
+            "showcase": {
+              "bins": 30,
+              "samples": 256,
+              "source_fraction": 0.3,
+              "target_fraction": 0.7
+            },
+            "source_samples": 64,
+            "target_samples": 64
+          }
+        },
+        "experiment": "gaussian-prior-dependence",
+        "id": "8ce12297fe7c3e2aa765bb78",
+        "member": {
+          "name": "normal-r0",
+          "prior": "normal",
+          "replica": 0
+        },
+        "numpy": "2.3.5",
+        "python": "3.13.5",
+        "source_archive": "0864d1a9133f5d6247f41bbc",
+        "started": "2026-09-08T10:37:54.449607+00:00",
+        "workload": {
+          "candidate_count_upper_bound": 512,
+          "candidate_design": "sobol",
+          "errors": [],
+          "estimated_inference_bytes": 37808,
+          "inference_cases": 9,
+          "inference_model_evaluations": 69255,
+          "inferred_parameters": [
+            "mean:0",
+            "mean:1"
+          ],
+          "network_inputs": 4,
+          "observation_dimension": 2,
+          "training_rows": 1024,
+          "truth_design": "grid",
+          "warnings": [
+            "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+            "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+          ]
+        }
+      },
+      "metrics": {
+        "bias": {
+          "mean_absolute": 1.2540076826181676,
+          "mean_signed": -0.13298222629560363,
+          "per_axis_absolute": [
+            1.0469137645430036,
+            1.4611016006933317
+          ],
+          "per_axis_signed": [
+            -0.08833364148934682,
+            -0.17763081110186046
+          ],
+          "rmse": 1.6297000927894998
+        },
+        "classification": {
+          "accuracy": 0.6328125,
+          "auc": 0.79571533203125,
+          "bce": 0.6155195903832553
+        },
+        "coverage": {
+          "cases": 9,
+          "interpretation": "empirical true-parameter membership on supplied truths",
+          "joint_density": [
+            0.6666666666666666,
+            1.0
+          ],
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "projected_mean": [
+            0.8888888888888888,
+            1.0
+          ],
+          "projected_per_axis": [
+            [
+              1.0,
+              0.7777777777777778
+            ],
+            [
+              1.0,
+              1.0
+            ]
+          ]
+        },
+        "exact_reference": {
+          "bias": {
+            "mean_absolute": 0.4291907048059834,
+            "mean_signed": -0.05518177110287878,
+            "per_axis_absolute": [
+              0.3893644056386418,
+              0.4690170039733251
+            ],
+            "per_axis_signed": [
+              0.005371963812245263,
+              -0.11573550601800282
+            ],
+            "rmse": 0.5390626364376261
+          },
+          "caveat": "Exact likelihood, but same numerical candidate approximation; not an analytic continuous HLD.",
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.5555555555555556,
+              1.0
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.6666666666666666,
+              0.9444444444444444
+            ],
+            "projected_per_axis": [
+              [
+                0.7777777777777778,
+                0.5555555555555556
+              ],
+              [
+                1.0,
+                0.8888888888888888
+              ]
+            ]
+          },
+          "enabled": true,
+          "learned_vs_exact_mode_rmse": 1.4640977957376005,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              1.0938795502814982,
+              1.9098654789850116
+            ],
+            "per_axis": [
+              [
+                1.0948989184366331,
+                1.092860182126363
+              ],
+              [
+                1.8715881961915228,
+                1.9481427617785003
+              ]
+            ]
+          }
+        },
+        "normalization": {
+          "caveat": "Monte Carlo check under each model's own training-prior evidence; finite-sample error remains.",
+          "expected_log_mean": 0.0,
+          "log_mean_ratio_per_theta": [
+            -0.7990322780999746,
+            -0.3912894117499386,
+            -0.3558674529502879,
+            -0.5906194536559815
+          ],
+          "mean_absolute_log_error": 0.5342021491140456
+        },
+        "pairwise": {
+          "distance_definition": "Euclidean distance in raw inferred parameter coordinates",
+          "mae_pooled": 5.182487040305295,
+          "max_absolute": 20.55296475887298,
+          "median_pair_rmse": 5.726635508526585,
+          "per_pair_rmse": [
+            2.374486606524345,
+            10.548437840565978,
+            9.078784410528826,
+            1.0183725124192882
+          ],
+          "rmse_pooled": 7.0775902761420175,
+          "spearman_distance_rmse": 1.0,
+          "worst_pair_rmse": 10.548437840565978
+        },
+        "posterior": {
+          "bias": {
+            "mean_absolute": 0.9492289444638623,
+            "mean_signed": -0.07100144566761123,
+            "per_axis_absolute": [
+              0.5239114628897773,
+              1.3745464260379474
+            ],
+            "per_axis_signed": [
+              0.30696234438154435,
+              -0.4489652357167668
+            ],
+            "rmse": 1.265439936587102
+          },
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.7777777777777778,
+              1.0
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.8888888888888888,
+              1.0
+            ],
+            "projected_per_axis": [
+              [
+                1.0,
+                0.7777777777777778
+              ],
+              [
+                1.0,
+                1.0
+              ]
+            ]
+          },
+          "enabled": true,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              3.1907494156103997,
+              4.946697131316695
+            ],
+            "per_axis": [
+              [
+                3.0489353914227753,
+                3.332563439798024
+              ],
+              [
+                4.736178073204226,
+                5.157216189429164
+              ]
+            ]
+          }
+        },
+        "resolution": {
+          "base_measure": "Lebesgue",
+          "candidate_count": 512,
+          "candidate_ess_fraction_median": 0.09846738144948725,
+          "candidate_ess_median": 50.41529930213747,
+          "candidate_ess_min": 25.43940264799035,
+          "mean_enclosed_mass": [
+            0.6869349547233652,
+            0.9514226199937179
+          ],
+          "warning": "Small candidate ESS can signal inadequate resolution; increase candidates and compare exact_reference."
+        },
+        "reweighting": {
+          "median_ess": 60.19842614220384,
+          "median_ess_fraction": 0.940600408471935,
+          "median_exact_sliced_w1": 1.5880759906286464,
+          "median_sliced_w1": 3.561758846174393,
+          "median_unweighted_sliced_w1": 3.8781234879350066,
+          "spearman_distance_w1": 1.0,
+          "worst_sliced_w1": 5.0232609628108555
+        },
+        "width": {
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "mean": [
+            3.1230800264618463,
+            4.852786771642665
+          ],
+          "per_axis": [
+            [
+              3.0490460176434784,
+              3.1971140352802143
+            ],
+            [
+              4.705043838669856,
+              5.000529704615474
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "run": {
+        "backend": {
+          "cpu_threads": 1,
+          "cuda": null,
+          "deterministic": true,
+          "device_name": "cpu",
+          "device_type": "cpu",
+          "torch": "2.10.0+cpu",
+          "world_size": 1
+        },
+        "changed": "training.learning_rate",
+        "config": {
+          "application": "gaussian:GaussianExperiment",
+          "cohort": {
+            "priors": [
+              "uniform",
+              "normal"
+            ],
+            "replicas": 1
+          },
+          "data": {
+            "test_size": 256,
+            "train_size": 1024,
+            "validation_size": 256
+          },
+          "inference": {
+            "align_truths_to_grid": true,
+            "candidate_count": 512,
+            "candidate_design": "sobol",
+            "candidate_points_per_axis": 200,
+            "diagnostic_cases": 2,
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "max_candidate_points": 2000000,
+            "max_grid_truths": 1000000,
+            "max_model_evaluations": 2000000000000,
+            "max_saved_bytes": 8000000000,
+            "native_grid_prior": true,
+            "observations": 15,
+            "repeats": 1,
+            "retain": "diagnostic",
+            "seed": 2026,
+            "sobol_truths": 65536,
+            "targets": [
+              "ratio",
+              "posterior",
+              "exact"
+            ],
+            "truth_design": "grid",
+            "truth_margin_fraction": 0.1,
+            "truth_points_per_axis": 3
+          },
+          "metrics": [
+            "classification",
+            "bias",
+            "coverage",
+            "width",
+            "resolution",
+            "posterior",
+            "exact_reference",
+            "pairwise",
+            "reweighting",
+            "normalization"
+          ],
+          "model": {
+            "activation": "relu",
+            "blocks": 3,
+            "dropout": 0.0,
+            "hidden": [
+              32,
+              32
+            ],
+            "kind": "mlp",
+            "width": 64
+          },
+          "output": "/mnt/data/reference_mixed",
+          "plots": [
+            "training",
+            "prior",
+            "inference",
+            "pairwise",
+            "reweighting",
+            "showcase"
+          ],
+          "plotting": {
+            "bins": 30,
+            "dpi": 140,
+            "max_inference_cases": 200,
+            "prior_points": 1000
+          },
+          "priors": {
+            "exponential": {
+              "family": "exponential"
+            },
+            "grid": {
+              "family": "grid"
+            },
+            "normal": {
+              "family": "normal"
+            },
+            "uniform": {
+              "family": "uniform"
+            }
+          },
+          "problem": {
+            "dimension": 2,
+            "fixed": {},
+            "fixed_mean": 5.0,
+            "fixed_std": 2.0,
+            "infer": [
+              "mean:*"
+            ],
+            "overrides": {},
+            "parameters": {
+              "mean": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 10.0,
+                "low": 0.0,
+                "normal_mean": 5.0,
+                "normal_std": 4.0
+              },
+              "std": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 4.0,
+                "low": 0.2,
+                "normal_mean": 2.0,
+                "normal_std": 0.7
+              }
+            }
+          },
+          "runtime": {
+            "cpu_threads": 1,
+            "deterministic": true,
+            "device": "cpu",
+            "parallel": "jobs",
+            "timeout_minutes": 60
+          },
+          "seed": 0,
+          "training": {
+            "batch_size": 128,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "checkpoint": "last",
+            "epochs": 2,
+            "epsilon": 1e-08,
+            "evaluation_batch_size": 2048,
+            "gradient_clip": null,
+            "learning_rate": 0.01,
+            "optimizer": "adam",
+            "precision": "off",
+            "verbose": true,
+            "weight_decay": 0.0
+          },
+          "verification": {
+            "directions": 4,
+            "marginal_samples": 128,
+            "normalization_design": "diagonal",
+            "normalization_on_grid": true,
+            "normalization_thetas": 4,
+            "pair_design": "grid",
+            "pairs": 4,
+            "samples_per_endpoint": 32,
+            "seed": 2027,
+            "showcase": {
+              "bins": 30,
+              "samples": 256,
+              "source_fraction": 0.3,
+              "target_fraction": 0.7
+            },
+            "source_samples": 64,
+            "target_samples": 64
+          }
+        },
+        "experiment": "gaussian-prior-dependence",
+        "id": "81aa8d150376829d430fe16e",
+        "member": {
+          "name": "uniform-r0",
+          "prior": "uniform",
+          "replica": 0
+        },
+        "numpy": "2.3.5",
+        "python": "3.13.5",
+        "source_archive": "0864d1a9133f5d6247f41bbc",
+        "started": "2026-09-08T10:37:58.121370+00:00",
+        "workload": {
+          "candidate_count_upper_bound": 512,
+          "candidate_design": "sobol",
+          "errors": [],
+          "estimated_inference_bytes": 37808,
+          "inference_cases": 9,
+          "inference_model_evaluations": 69255,
+          "inferred_parameters": [
+            "mean:0",
+            "mean:1"
+          ],
+          "network_inputs": 4,
+          "observation_dimension": 2,
+          "training_rows": 1024,
+          "truth_design": "grid",
+          "warnings": [
+            "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+            "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+          ]
+        }
+      },
+      "metrics": {
+        "bias": {
+          "mean_absolute": 1.6304432927734323,
+          "mean_signed": 0.8638436152703233,
+          "per_axis_absolute": [
+            0.8078134010235468,
+            2.4530731845233174
+          ],
+          "per_axis_signed": [
+            -0.30162394874625736,
+            2.029311179286904
+          ],
+          "rmse": 2.5933098719887786
+        },
+        "classification": {
+          "accuracy": 0.765625,
+          "auc": 0.83026123046875,
+          "bce": 0.5330626330964818
+        },
+        "coverage": {
+          "cases": 9,
+          "interpretation": "empirical true-parameter membership on supplied truths",
+          "joint_density": [
+            0.4444444444444444,
+            0.7777777777777778
+          ],
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "projected_mean": [
+            0.5555555555555556,
+            0.8888888888888888
+          ],
+          "projected_per_axis": [
+            [
+              0.6666666666666666,
+              0.4444444444444444
+            ],
+            [
+              1.0,
+              0.7777777777777778
+            ]
+          ]
+        },
+        "exact_reference": {
+          "bias": {
+            "mean_absolute": 0.4291907048059834,
+            "mean_signed": -0.05518177110287878,
+            "per_axis_absolute": [
+              0.3893644056386418,
+              0.4690170039733251
+            ],
+            "per_axis_signed": [
+              0.005371963812245263,
+              -0.11573550601800282
+            ],
+            "rmse": 0.5390626364376261
+          },
+          "caveat": "Exact likelihood, but same numerical candidate approximation; not an analytic continuous HLD.",
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.5555555555555556,
+              1.0
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.6666666666666666,
+              0.9444444444444444
+            ],
+            "projected_per_axis": [
+              [
+                0.7777777777777778,
+                0.5555555555555556
+              ],
+              [
+                1.0,
+                0.8888888888888888
+              ]
+            ]
+          },
+          "enabled": true,
+          "learned_vs_exact_mode_rmse": 2.5313169178801513,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              1.0938795502814982,
+              1.9098654789850116
+            ],
+            "per_axis": [
+              [
+                1.0948989184366331,
+                1.092860182126363
+              ],
+              [
+                1.8715881961915228,
+                1.9481427617785003
+              ]
+            ]
+          }
+        },
+        "normalization": {
+          "caveat": "Monte Carlo check under each model's own training-prior evidence; finite-sample error remains.",
+          "expected_log_mean": 0.0,
+          "log_mean_ratio_per_theta": [
+            -1.561655302691253,
+            -0.31904170775414453,
+            0.2366482330887889,
+            0.0005559774714321009
+          ],
+          "mean_absolute_log_error": 0.5294753052514046
+        },
+        "pairwise": {
+          "distance_definition": "Euclidean distance in raw inferred parameter coordinates",
+          "mae_pooled": 4.675457480341447,
+          "max_absolute": 19.917446899414063,
+          "median_pair_rmse": 5.214054221238582,
+          "per_pair_rmse": [
+            2.275959737087304,
+            9.630140443769331,
+            8.15214870538986,
+            0.9324694314465571
+          ],
+          "rmse_pooled": 6.42741443830519,
+          "spearman_distance_rmse": 1.0,
+          "worst_pair_rmse": 9.630140443769331
+        },
+        "posterior": {
+          "bias": {
+            "mean_absolute": 1.6304432927734323,
+            "mean_signed": 0.8638436152703233,
+            "per_axis_absolute": [
+              0.8078134010235468,
+              2.4530731845233174
+            ],
+            "per_axis_signed": [
+              -0.30162394874625736,
+              2.029311179286904
+            ],
+            "rmse": 2.5933098719887786
+          },
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.4444444444444444,
+              0.7777777777777778
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.5555555555555556,
+              0.8888888888888888
+            ],
+            "projected_per_axis": [
+              [
+                0.6666666666666666,
+                0.4444444444444444
+              ],
+              [
+                1.0,
+                0.7777777777777778
+              ]
+            ]
+          },
+          "enabled": true,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              2.0864314970870814,
+              3.567095741215679
+            ],
+            "per_axis": [
+              [
+                2.082933568292194,
+                2.0899294258819685
+              ],
+              [
+                3.6576919472879834,
+                3.4764995351433754
+              ]
+            ]
+          }
+        },
+        "resolution": {
+          "base_measure": "Lebesgue",
+          "candidate_count": 512,
+          "candidate_ess_fraction_median": 0.06313543291880327,
+          "candidate_ess_median": 32.32534165442728,
+          "candidate_ess_min": 6.670423792561867,
+          "mean_enclosed_mass": [
+            0.690637290371726,
+            0.952400481655038
+          ],
+          "warning": "Small candidate ESS can signal inadequate resolution; increase candidates and compare exact_reference."
+        },
+        "reweighting": {
+          "median_ess": 42.81264295041872,
+          "median_ess_fraction": 0.6689475461002925,
+          "median_exact_sliced_w1": 1.5880759906286464,
+          "median_sliced_w1": 3.15914108817162,
+          "median_unweighted_sliced_w1": 3.8781234879350066,
+          "spearman_distance_w1": 1.0,
+          "worst_sliced_w1": 4.501200539831285
+        },
+        "width": {
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "mean": [
+            2.0864314970870814,
+            3.567095741215679
+          ],
+          "per_axis": [
+            [
+              2.082933568292194,
+              2.0899294258819685
+            ],
+            [
+              3.6576919472879834,
+              3.4764995351433754
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "run": {
+        "backend": {
+          "cpu_threads": 1,
+          "cuda": null,
+          "deterministic": true,
+          "device_name": "cpu",
+          "device_type": "cpu",
+          "torch": "2.10.0+cpu",
+          "world_size": 1
+        },
+        "changed": "training.learning_rate",
+        "config": {
+          "application": "gaussian:GaussianExperiment",
+          "cohort": {
+            "priors": [
+              "uniform",
+              "normal"
+            ],
+            "replicas": 1
+          },
+          "data": {
+            "test_size": 256,
+            "train_size": 1024,
+            "validation_size": 256
+          },
+          "inference": {
+            "align_truths_to_grid": true,
+            "candidate_count": 512,
+            "candidate_design": "sobol",
+            "candidate_points_per_axis": 200,
+            "diagnostic_cases": 2,
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "max_candidate_points": 2000000,
+            "max_grid_truths": 1000000,
+            "max_model_evaluations": 2000000000000,
+            "max_saved_bytes": 8000000000,
+            "native_grid_prior": true,
+            "observations": 15,
+            "repeats": 1,
+            "retain": "diagnostic",
+            "seed": 2026,
+            "sobol_truths": 65536,
+            "targets": [
+              "ratio",
+              "posterior",
+              "exact"
+            ],
+            "truth_design": "grid",
+            "truth_margin_fraction": 0.1,
+            "truth_points_per_axis": 3
+          },
+          "metrics": [
+            "classification",
+            "bias",
+            "coverage",
+            "width",
+            "resolution",
+            "posterior",
+            "exact_reference",
+            "pairwise",
+            "reweighting",
+            "normalization"
+          ],
+          "model": {
+            "activation": "relu",
+            "blocks": 3,
+            "dropout": 0.0,
+            "hidden": [
+              32,
+              32
+            ],
+            "kind": "mlp",
+            "width": 64
+          },
+          "output": "/mnt/data/reference_mixed",
+          "plots": [
+            "training",
+            "prior",
+            "inference",
+            "pairwise",
+            "reweighting",
+            "showcase"
+          ],
+          "plotting": {
+            "bins": 30,
+            "dpi": 140,
+            "max_inference_cases": 200,
+            "prior_points": 1000
+          },
+          "priors": {
+            "exponential": {
+              "family": "exponential"
+            },
+            "grid": {
+              "family": "grid"
+            },
+            "normal": {
+              "family": "normal"
+            },
+            "uniform": {
+              "family": "uniform"
+            }
+          },
+          "problem": {
+            "dimension": 2,
+            "fixed": {},
+            "fixed_mean": 5.0,
+            "fixed_std": 2.0,
+            "infer": [
+              "mean:*"
+            ],
+            "overrides": {},
+            "parameters": {
+              "mean": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 10.0,
+                "low": 0.0,
+                "normal_mean": 5.0,
+                "normal_std": 4.0
+              },
+              "std": {
+                "exponential_rate": 0.1,
+                "grid_step": 0.2,
+                "high": 4.0,
+                "low": 0.2,
+                "normal_mean": 2.0,
+                "normal_std": 0.7
+              }
+            }
+          },
+          "runtime": {
+            "cpu_threads": 1,
+            "deterministic": true,
+            "device": "cpu",
+            "parallel": "jobs",
+            "timeout_minutes": 60
+          },
+          "seed": 0,
+          "training": {
+            "batch_size": 128,
+            "betas": [
+              0.9,
+              0.999
+            ],
+            "checkpoint": "last",
+            "epochs": 2,
+            "epsilon": 1e-08,
+            "evaluation_batch_size": 2048,
+            "gradient_clip": null,
+            "learning_rate": 0.01,
+            "optimizer": "adam",
+            "precision": "off",
+            "verbose": true,
+            "weight_decay": 0.0
+          },
+          "verification": {
+            "directions": 4,
+            "marginal_samples": 128,
+            "normalization_design": "diagonal",
+            "normalization_on_grid": true,
+            "normalization_thetas": 4,
+            "pair_design": "grid",
+            "pairs": 4,
+            "samples_per_endpoint": 32,
+            "seed": 2027,
+            "showcase": {
+              "bins": 30,
+              "samples": 256,
+              "source_fraction": 0.3,
+              "target_fraction": 0.7
+            },
+            "source_samples": 64,
+            "target_samples": 64
+          }
+        },
+        "experiment": "gaussian-prior-dependence",
+        "id": "12d8bc13234185f0b3262942",
+        "member": {
+          "name": "normal-r0",
+          "prior": "normal",
+          "replica": 0
+        },
+        "numpy": "2.3.5",
+        "python": "3.13.5",
+        "source_archive": "0864d1a9133f5d6247f41bbc",
+        "started": "2026-09-08T10:38:01.226584+00:00",
+        "workload": {
+          "candidate_count_upper_bound": 512,
+          "candidate_design": "sobol",
+          "errors": [],
+          "estimated_inference_bytes": 37808,
+          "inference_cases": 9,
+          "inference_model_evaluations": 69255,
+          "inferred_parameters": [
+            "mean:0",
+            "mean:1"
+          ],
+          "network_inputs": 4,
+          "observation_dimension": 2,
+          "training_rows": 1024,
+          "truth_design": "grid",
+          "warnings": [
+            "Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported",
+            "Candidate resolution may be inadequate; compare exact_reference and run a candidate-count sweep"
+          ]
+        }
+      },
+      "metrics": {
+        "bias": {
+          "mean_absolute": 1.1294100084859464,
+          "mean_signed": -0.9210105802242955,
+          "per_axis_absolute": [
+            0.4376848273807102,
+            1.8211351895911827
+          ],
+          "per_axis_signed": [
+            -0.02088597085740831,
+            -1.8211351895911827
+          ],
+          "rmse": 1.5537805443620387
+        },
+        "classification": {
+          "accuracy": 0.703125,
+          "auc": 0.78631591796875,
+          "bce": 0.5529635641975894
+        },
+        "coverage": {
+          "cases": 9,
+          "interpretation": "empirical true-parameter membership on supplied truths",
+          "joint_density": [
+            0.3333333333333333,
+            0.7777777777777778
+          ],
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "projected_mean": [
+            0.7222222222222222,
+            0.9444444444444444
+          ],
+          "projected_per_axis": [
+            [
+              1.0,
+              0.4444444444444444
+            ],
+            [
+              1.0,
+              0.8888888888888888
+            ]
+          ]
+        },
+        "exact_reference": {
+          "bias": {
+            "mean_absolute": 0.4291907048059834,
+            "mean_signed": -0.05518177110287878,
+            "per_axis_absolute": [
+              0.3893644056386418,
+              0.4690170039733251
+            ],
+            "per_axis_signed": [
+              0.005371963812245263,
+              -0.11573550601800282
+            ],
+            "rmse": 0.5390626364376261
+          },
+          "caveat": "Exact likelihood, but same numerical candidate approximation; not an analytic continuous HLD.",
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.5555555555555556,
+              1.0
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.6666666666666666,
+              0.9444444444444444
+            ],
+            "projected_per_axis": [
+              [
+                0.7777777777777778,
+                0.5555555555555556
+              ],
+              [
+                1.0,
+                0.8888888888888888
+              ]
+            ]
+          },
+          "enabled": true,
+          "learned_vs_exact_mode_rmse": 1.470211178443532,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              1.0938795502814982,
+              1.9098654789850116
+            ],
+            "per_axis": [
+              [
+                1.0948989184366331,
+                1.092860182126363
+              ],
+              [
+                1.8715881961915228,
+                1.9481427617785003
+              ]
+            ]
+          }
+        },
+        "normalization": {
+          "caveat": "Monte Carlo check under each model's own training-prior evidence; finite-sample error remains.",
+          "expected_log_mean": 0.0,
+          "log_mean_ratio_per_theta": [
+            -0.5304189205500176,
+            -0.17711044572121537,
+            -0.16066813291763982,
+            -0.6410624652655095
+          ],
+          "mean_absolute_log_error": 0.37731499111359557
+        },
+        "pairwise": {
+          "distance_definition": "Euclidean distance in raw inferred parameter coordinates",
+          "mae_pooled": 4.749478659140896,
+          "max_absolute": 19.914018583297725,
+          "median_pair_rmse": 5.141523025617985,
+          "per_pair_rmse": [
+            1.7718537266263783,
+            10.163581778889544,
+            8.511192324609592,
+            0.8891297863316037
+          ],
+          "rmse_pooled": 6.702029669588359,
+          "spearman_distance_rmse": 1.0,
+          "worst_pair_rmse": 10.163581778889544
+        },
+        "posterior": {
+          "bias": {
+            "mean_absolute": 1.218917589634657,
+            "mean_signed": -0.9156430243617959,
+            "per_axis_absolute": [
+              0.5082321034537421,
+              1.9296030758155718
+            ],
+            "per_axis_signed": [
+              0.09831702709197998,
+              -1.9296030758155718
+            ],
+            "rmse": 1.650981522450379
+          },
+          "coverage": {
+            "cases": 9,
+            "interpretation": "empirical true-parameter membership on supplied truths",
+            "joint_density": [
+              0.2222222222222222,
+              0.8888888888888888
+            ],
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "projected_mean": [
+              0.6111111111111112,
+              0.9444444444444444
+            ],
+            "projected_per_axis": [
+              [
+                1.0,
+                0.2222222222222222
+              ],
+              [
+                1.0,
+                0.8888888888888888
+              ]
+            ]
+          },
+          "enabled": true,
+          "width": {
+            "levels": [
+              0.68,
+              0.95
+            ],
+            "mean": [
+              2.6395593787439995,
+              4.102781767749952
+            ],
+            "per_axis": [
+              [
+                2.384041764256027,
+                2.895076993231972
+              ],
+              [
+                3.5361272506415844,
+                4.669436284858319
+              ]
+            ]
+          }
+        },
+        "resolution": {
+          "base_measure": "Lebesgue",
+          "candidate_count": 512,
+          "candidate_ess_fraction_median": 0.12374363004019756,
+          "candidate_ess_median": 63.35673858058115,
+          "candidate_ess_min": 10.887473553332102,
+          "mean_enclosed_mass": [
+            0.6926569132341317,
+            0.9513849576932965
+          ],
+          "warning": "Small candidate ESS can signal inadequate resolution; increase candidates and compare exact_reference."
+        },
+        "reweighting": {
+          "median_ess": 41.25345609166793,
+          "median_ess_fraction": 0.6445852514323114,
+          "median_exact_sliced_w1": 1.5880759906286464,
+          "median_sliced_w1": 3.323332074880484,
+          "median_unweighted_sliced_w1": 3.8781234879350066,
+          "spearman_distance_w1": 1.0,
+          "worst_sliced_w1": 5.08549911345692
+        },
+        "width": {
+          "levels": [
+            0.68,
+            0.95
+          ],
+          "mean": [
+            2.5549727960800133,
+            4.07653306134873
+          ],
+          "per_axis": [
+            [
+              2.3004707275993295,
+              2.8094748645606966
+            ],
+            [
+              3.51844504268633,
+              4.634621080011129
+            ]
+          ]
+        }
+      }
+    }
+  ]
+}

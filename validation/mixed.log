@@ -1,0 +1,25 @@
+[1/8] baseline: uniform-r0
+  epoch 1: train=0.71945, val=0.69243
+  epoch 2: train=0.68329, val=0.67675
+[2/8] baseline: normal-r0
+  epoch 1: train=0.70007, val=0.70493
+  epoch 2: train=0.68446, val=0.68574
+[3/8] problem_infer: uniform-r0
+  epoch 1: train=0.79464, val=0.72742
+  epoch 2: train=0.70217, val=0.69792
+[4/8] problem_infer: normal-r0
+  epoch 1: train=0.70206, val=0.69591
+  epoch 2: train=0.68769, val=0.68842
+[5/8] model_kind: uniform-r0
+  epoch 1: train=0.79201, val=0.68674
+  epoch 2: train=0.64662, val=0.62200
+[6/8] model_kind: normal-r0
+  epoch 1: train=0.74314, val=0.66761
+  epoch 2: train=0.63957, val=0.61873
+[7/8] training_learning_rate: uniform-r0
+  epoch 1: train=0.69328, val=0.61936
+  epoch 2: train=0.58417, val=0.55343
+[8/8] training_learning_rate: normal-r0
+  epoch 1: train=0.67805, val=0.64599
+  epoch 2: train=0.59214, val=0.56526
+Saved /mnt/data/nnpd_clean/validation/mixed_results.json; 8 runs in 31.6 s

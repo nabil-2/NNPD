@@ -1,0 +1,21 @@
+[1/4] baseline: uniform-r0
+  epoch 1: train=0.70353, val=0.69679
+  epoch 2: train=0.69053, val=0.68195
+[2/4] baseline: normal-r0
+  epoch 1: train=0.68304, val=0.66957
+  epoch 2: train=0.67145, val=0.65921
+[3/4] baseline: exponential-r0
+  epoch 1: train=0.67057, val=0.65807
+  epoch 2: train=0.65158, val=0.64435
+[4/4] baseline: grid-r0
+  epoch 1: train=0.72107, val=0.69712
+  epoch 2: train=0.68739, val=0.67437
+{'mean_signed': -0.44091057777404785, 'mean_absolute': 0.7111956051417759, 'rmse': 0.8392543695172605, 'per_axis_signed': [-0.44091057777404785], 'per_axis_absolute': [0.7111956051417759]}
+[1/4] baseline: uniform-r0
+[2/4] baseline: normal-r0
+[3/4] baseline: exponential-r0
+[4/4] baseline: grid-r0
+[1/4] baseline: uniform-r0
+[2/4] baseline: normal-r0
+[3/4] baseline: exponential-r0
+[4/4] baseline: grid-r0

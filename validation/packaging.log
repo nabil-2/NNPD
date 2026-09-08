@@ -1,0 +1,18 @@
+WARNING: The directory '/home/oai/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.
+Processing /mnt/data/nnpd_clean
+  Preparing metadata (pyproject.toml): started
+  Preparing metadata (pyproject.toml): finished with status 'done'
+Building wheels for collected packages: nnpd-clean
+  Building wheel for nnpd-clean (pyproject.toml): started
+  Building wheel for nnpd-clean (pyproject.toml): finished with status 'done'
+  Created wheel for nnpd-clean: filename=nnpd_clean-0.1.0-py3-none-any.whl size=43414 sha256=82dc0b7a7141634d02327eb769e76a5601b2d336b3def783a6f45701fa909b80
+  Stored in directory: /tmp/pip-ephem-wheel-cache-u18c7x58/wheels/ab/69/7e/c6f7f0c8c0b9da63cc43060c932cd81eea02f46742cbffa7bc
+Successfully built nnpd-clean
+WARNING: The directory '/home/oai/.cache/pip' or its parent directory is not owned or is not writable by the current user. The cache has been disabled. Check the permissions and owner of that directory. If executing pip with sudo, you should use sudo's -H flag.
+Processing /mnt/data/nnpd_wheels/nnpd_clean-0.1.0-py3-none-any.whl
+Installing collected packages: nnpd-clean
+Successfully installed nnpd-clean-0.1.0
+nnpd: /mnt/data/nnpd_install_check/lib/python3.13/site-packages/nnpd/__init__.py
+gaussian: /mnt/data/nnpd_install_check/lib/python3.13/site-packages/gaussian/__init__.py
+Installed wheel entry point: 8 mixed-profile jobs, imported outside the source tree.
+Dependencies were reused from the existing CPU validation environment; no network dependency installation was tested.

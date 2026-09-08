@@ -1,0 +1,17 @@
+/* Documentation presentation only. System fonts; no external assets. */
+:root {
+  --content-width: 54rem;
+  --sidebar-item-spacing-vertical: 0.4rem;
+}
+.content { max-width: 58rem; }
+article p { line-height: 1.65; }
+article table { width: 100%; }
+article th, article td { padding: 0.65rem 0.8rem; vertical-align: top; }
+article code.literal { overflow-wrap: anywhere; }
+article .highlight { border-radius: 0.4rem; }
+article figure { margin: 1.5rem 0; }
+article img { height: auto; max-width: 100%; }
+article .admonition { border-radius: 0.35rem; }
+@media (max-width: 48rem) {
+  article th, article td { padding: 0.45rem 0.6rem; }
+}

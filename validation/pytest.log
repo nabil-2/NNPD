@@ -1,0 +1,39 @@
+...........................sss.......................................... [ 83%]
+..............                                                           [100%]
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.13.5-final-0 ________________
+
+Name                        Stmts   Miss  Cover   Missing
+---------------------------------------------------------
+gaussian/__init__.py            2      0   100%
+gaussian/diagnostics.py       116      1    99%   86
+gaussian/evaluation.py        153      9    94%   16, 67, 80, 121, 123-124, 155-156, 177
+gaussian/experiment.py        176     17    90%   23, 81, 84, 92, 94, 108, 110, 125, 127, 130, 132, 137, 139, 147, 182, 194, 200
+gaussian/extensions.py         21      0   100%
+gaussian/hooks.py              14      0   100%
+gaussian/metrics.py            59      1    98%   82
+gaussian/plots.py             108      0   100%
+gaussian/problem.py            67      8    88%   14, 28, 30, 38, 46, 48, 57, 59
+gaussian/sampling.py           10      0   100%
+nnpd/__init__.py                5      0   100%
+nnpd/cli.py                    28      1    96%   40
+nnpd/core/__init__.py           0      0   100%
+nnpd/core/api.py              116      4    97%   31, 110, 156, 170
+nnpd/core/config.py            70      2    97%   46, 83
+nnpd/core/runner.py           231     11    95%   78, 80, 83, 85, 93, 95, 158, 171, 217, 231, 274
+nnpd/core/runtime.py           67     19    72%   27, 34-40, 47-51, 65-67, 72, 76-77, 85
+nnpd/core/storage.py          126      3    98%   89, 97, 153
+nnpd/nre/__init__.py            0      0   100%
+nnpd/nre/data.py               12      0   100%
+nnpd/nre/distributions.py     118     12    90%   21, 26, 29, 44, 63, 93, 98, 102, 105, 116, 137, 143
+nnpd/nre/inference.py          47      4    91%   17, 42, 44, 48
+nnpd/nre/models.py             45      4    91%   11, 22, 69-70
+nnpd/nre/training.py          104      9    91%   17, 21, 31, 41, 70, 86, 97, 107, 122
+nnpd/results.py                52      2    96%   44-45
+---------------------------------------------------------
+TOTAL                        1747    107    94%
+Coverage JSON written to file validation/coverage.json
+=========================== short test summary info ============================
+SKIPPED [2] tests/test_distributed.py:77: No CUDA device available
+SKIPPED [1] tests/test_distributed.py:89: Two CUDA devices are required
+83 passed, 3 skipped in 117.16s (0:01:57)

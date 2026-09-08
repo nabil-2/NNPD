@@ -1,0 +1,16 @@
+{
+  "archive_extracted": "NNPD_clean_candidate.zip",
+  "extracted_root": "/mnt/data/release_smoke/nnpd_clean",
+  "smoke_completed_models": 4,
+  "analysis_command_returncode": 0,
+  "analysis_reused_all_checkpoint_mtimes": true,
+  "analysis_seconds": 17.524993386999995,
+  "deep_verify_command_returncode": 0,
+  "deep_verify_output": "outputs/smoke: verified 41 artifacts",
+  "code_test_config_files_sha256_equal_to_release_source": 38,
+  "reference_store_deep_verified_counts": {
+    "legacy_1d": 41,
+    "mixed": 72
+  },
+  "note": "The final ZIP adds this report/log/manifest; its executable sources are identical to the extracted, tested release candidate."
+}
