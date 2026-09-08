@@ -202,7 +202,7 @@ cython_debug/
 .cursorindexingignore
 
 # Large artifacts
-figs/**/posterior_errors/*.pkl
+figs/
 
 # Marimo
 marimo/_static/
@@ -211,7 +211,6 @@ __marimo__/
 
 dev_tests/
 cmds.txt
-figs/**/compact_store/
 log/
 paper_latex-code/
 venv/
