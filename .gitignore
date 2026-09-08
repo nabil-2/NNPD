@@ -201,7 +201,17 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 
+# Large artifacts
+figs/**/posterior_errors/*.pkl
+
 # Marimo
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+dev_tests/
+cmds.txt
+figs/**/compact_store/
+log/
+paper_latex-code/
+venv/
