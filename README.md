@@ -148,7 +148,6 @@ gaussian/
   extensions.py            Working custom metric/model metric/plot example
 notebooks/                 Three thin executable notebooks; no function definitions
 tests/                     Unit, science, integration, notebook and distributed tests
-validation/                Reference-run script
 ```
 
 An `Experiment` supplies the problem, prior, data sampler, model builder and
@@ -272,4 +271,4 @@ independent non-Gaussian framework use, notebook execution and real distributed
 processes. They are evidence for the tested implementation—not a guarantee of
 scientific convergence for arbitrary high-dimensional configurations. See
 [Testing and validation](docs/guide/testing.md) for coverage details and the
-larger reference runs.
+full-size reference run.

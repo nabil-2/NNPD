@@ -42,16 +42,21 @@ Multi-node launches are not covered by the test suite. The tests are evidence fo
 the implementation, not a guarantee of scientific convergence for arbitrary
 high-dimensional configurations.
 
-## Reference runs
+## Full-size reference run
 
-The test suite uses tiny configurations. A larger reference run exercises
-realistic sizes on CPU. Keep its output outside the repository:
+The test suite uses tiny configurations. To exercise realistic sizes, run the
+`default` preset at dimension one:
 
-```bash
-python validation/run_reference.py --output ../nnpd-reference
+```python
+from settings import make_config
+from nnpd import execute, load_experiment
+
+config = make_config("default")
+config["problem"]["dimension"] = 1
+execute(config, load_experiment(config["application"]))
 ```
 
-It runs the `default` preset at dimension one: four priors, 70,000 training
+This trains and analyzes four priors, 70,000 training
 plus 15,000 validation and 15,000 test rows per prior, four 64-unit hidden layers,
 Adam at 0.001 for five epochs, 15 observations at each of 1,024 Sobol truth
 points, 16,384 continuous candidates, native grid candidates, 256 verification
@@ -60,10 +65,9 @@ inference: up to about 2.5·10⁸ model evaluations per prior, reported by the p
 `inference_model_evaluations`. Wall time depends on the hardware and on
 `runtime.cpu_threads`.
 
-It writes `results.json` into the output directory, holding the resolved
-configurations, provenance and all metrics. Plots are under each run's `plots/`
-folder. For a byte-level integrity check of the store, call
-`nnpd.core.runner.verify_store("<output directory>")`.
+Results go to `outputs/default`: each run folder holds its resolved configuration,
+metrics and plots. `python run.py verify --profile default` checks the saved
+artifacts byte by byte.
 
 Treat this as a functionality and sanity check, not a converged scientific result.
 Five-epoch networks need not be well calibrated, and learned reweighting can
