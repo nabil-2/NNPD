@@ -53,7 +53,7 @@ candidate count to fit a guard.
 
 `settings.py` contains the complete settings dictionary and the named presets.
 Edit it rather than chasing defaults through implementation files. The presets
-are `default`, `paper`, `smoke`, `mixed`, `extended`, and `smoke_ddp`.
+are `default`, `paper`, and `smoke`.
 `default` is the full study exactly as defined in `SETTINGS`. `paper` makes the
 paper-facing choices explicit; it is not a claim of bitwise or figure-for-figure
 reproduction.
@@ -116,9 +116,6 @@ name-specific `problem.overrides`. Standard deviations must be positive. Invalid
 combinations, such as `std:1` in a one-dimensional baseline, fail during planning.
 Set a compatible baseline dimension rather than relying on Cartesian combinations.
 
-`python run.py run --profile mixed` is an executable example comparing the two
-parameter sets, MLP/residual architectures, and learning rates with OFAT semantics.
-
 ## Structure and extension points
 
 ```text
@@ -159,22 +156,29 @@ which products it needs, and receives those artifacts plus the full context:
 model, simulator, prior, settings, runtime, run directory and artifact store.
 There is no fixed number of hooks and no hard-coded metric switch in the runner.
 
-For a complete, tested extension, read `gaussian/extensions.py` and run:
+Analysis can be added after training. `gaussian/extensions.py` adds a median-bias
+metric sharing the existing inference data, a direct model-parameter-count metric,
+and a custom observation plot. After a smoke run, this analyzes the already
+trained models without retraining (any other trained profile works the same way):
 
-```bash
-python run.py run --profile extended
+```python
+config = make_config("smoke")
+config["application"] = "gaussian.extensions:ExtendedGaussian"
+config["metrics"] += ["median_absolute_bias", "parameter_count"]
+config["plots"] += ["observation_histogram"]
+execute(config, load_experiment(config["application"]), stage="analyze")
 ```
 
-It adds a median-bias metric sharing the existing inference data, a direct
-model-parameter-count metric, and a custom observation plot. It deliberately
-uses the smoke artifact store so previously trained smoke models are reused.
-See [Extending the framework](docs/EXTENDING.md) for contracts and examples.
+`notebooks/03_extensions.ipynb` runs exactly this for its `PROFILE`. See
+[Extending the framework](docs/EXTENDING.md) for contracts and examples.
 
 ## Notebooks and Python are the same workflow
 
 Execute `notebooks/01_run.ipynb`, then `02_inspect.ipynb`, then
-`03_extensions.ipynb`. The first runs the smoke study; the second reloads saved
-models/data, calls metrics and plots, and exports CSV; the third runs the extension.
+`03_extensions.ipynb`. The first runs a study; the second reloads saved
+models/data, calls metrics and plots, and exports CSV; the third adds new metrics
+and a plot to the trained models. Each starts with `PROFILE = "smoke"`; set it to
+another profile in all three to use that one.
 The inspection notebook intentionally does not train missing models.
 
 All of this is also ordinary Python:
@@ -213,8 +217,8 @@ GPU count. The trainer handles unequal and empty final shards without duplicatin
 or dropping real training examples.
 
 ```bash
-# smoke_ddp already sets runtime.parallel="ddp"
-CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node=2 run.py run --profile smoke_ddp
+# settings.py: runtime.parallel="ddp"
+CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node=2 run.py run --profile smoke
 ```
 
 Use one worker per visible GPU and homogeneous GPU types within a DDP group.

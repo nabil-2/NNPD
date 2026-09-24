@@ -94,7 +94,7 @@ SETTINGS = {
 }
 
 # Presets are here, not hidden inside the framework. Scientific differences are documented.
-PROFILES = ("default", "paper", "smoke", "mixed", "extended", "smoke_ddp")
+PROFILES = ("default", "paper", "smoke")
 
 
 def make_config(profile: str = DEFAULT_PROFILE) -> dict:
@@ -109,7 +109,7 @@ def make_config(profile: str = DEFAULT_PROFILE) -> dict:
         cfg["inference"]["truth_design"] = "grid"  # no silent replacement of 25**d truths
         cfg["inference"]["targets"] = ["ratio", "exact"]
         cfg["inference"]["native_grid_prior"] = False  # continuous domain in paper Eq. 4
-    if profile in {"smoke", "mixed", "extended", "smoke_ddp"}:
+    if profile == "smoke":
         cfg["problem"]["dimension"] = 1
         cfg["data"] = {"train_size": 1024, "validation_size": 256, "test_size": 256}
         cfg["model"]["hidden"] = [32, 32]
@@ -121,19 +121,4 @@ def make_config(profile: str = DEFAULT_PROFILE) -> dict:
                                    normalization_thetas=4)
         cfg["verification"]["showcase"].update(samples=256, bins=30)
         cfg["plotting"].update(prior_points=1000, bins=30)
-    if profile == "mixed":
-        cfg["problem"]["dimension"] = 2
-        cfg["problem"]["infer"] = Choice([["mean:*"], ["mean:*", "std:1"]])
-        cfg["model"]["kind"] = Choice(["mlp", "residual"])
-        cfg["training"]["learning_rate"] = Choice([0.001, 0.01])
-        cfg["cohort"]["priors"] = ["uniform", "normal"]
-        cfg["inference"].update(truth_points_per_axis=3, candidate_count=512)
-    if profile == "extended":
-        cfg["output"] = "outputs/smoke"  # same cache: demonstrate adding metrics without retraining
-        cfg["application"] = "gaussian.extensions:ExtendedGaussian"
-        cfg["metrics"] += ["median_absolute_bias", "parameter_count"]
-        cfg["plots"] += ["observation_histogram"]
-    if profile == "smoke_ddp":
-        cfg["runtime"]["parallel"] = "ddp"
-        cfg["cohort"]["priors"] = ["uniform"]
     return cfg

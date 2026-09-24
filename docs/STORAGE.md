@@ -78,8 +78,8 @@ scores. This is a simplicity/storage tradeoff. A custom
 raw-score product can separate those operations for a more specialized workflow.
 
 Different output roots do not share a global cache automatically. Use the same
-root for related configurations and analysis-only extensions. The dedicated
-`extended` preset does so for the smoke study.
+root for related configurations and analysis-only extensions, as
+`notebooks/03_extensions.ipynb` does for the smoke study.
 
 ## Numeric products and shape conventions
 

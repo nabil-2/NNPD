@@ -44,28 +44,25 @@ high-dimensional configurations.
 
 ## Reference runs
 
-The test suite uses tiny configurations. Two larger runs exercise realistic sizes
-on CPU. Keep their output outside the repository:
+The test suite uses tiny configurations. A larger reference run exercises
+realistic sizes on CPU. Keep its output outside the repository:
 
 ```bash
-python validation/run_reference.py default_1d --output ../nnpd-reference/default_1d
-python validation/run_reference.py mixed --output ../nnpd-reference/mixed
+python validation/run_reference.py --output ../nnpd-reference
 ```
 
-`default_1d` is the `default` preset at dimension one: four priors, 70,000 training
+It runs the `default` preset at dimension one: four priors, 70,000 training
 plus 15,000 validation and 15,000 test rows per prior, four 64-unit hidden layers,
 Adam at 0.001 for five epochs, 15 observations at each of 25 truth points, 16,384
 continuous candidates, native grid candidates, 256 verification pairs, and the
 one-million-sample reweighting showcase. It takes a few minutes on one CPU.
-`mixed` is the `mixed` preset: eight models from four OFAT configurations and a
-two-prior cohort.
 
-Each run writes `<name>_results.json` into its output directory, holding the
-resolved configurations, provenance and all metrics. Plots are under each run's
-`plots/` folder. For a byte-level integrity check of the store, call
+It writes `results.json` into the output directory, holding the resolved
+configurations, provenance and all metrics. Plots are under each run's `plots/`
+folder. For a byte-level integrity check of the store, call
 `nnpd.core.runner.verify_store("<output directory>")`.
 
-Treat these as functionality and sanity checks, not converged scientific results.
+Treat this as a functionality and sanity check, not a converged scientific result.
 With a single 25-case design, projected coverage is often below nominal.
 Five-epoch networks need not be well calibrated, and learned reweighting can
 differ visibly from the exact target. Different random streams, numerical backends

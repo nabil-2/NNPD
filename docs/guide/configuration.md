@@ -67,10 +67,8 @@ second observation dimension; indices start at zero. At observation dimension
 two, these parameter sets have two and three inferred coordinates, giving model
 input sizes four and five. NNPD derives the input size.
 
-The `mixed` preset implements this comparison together with a learning-rate
-alternative. It has four resolved configurations and two prior cohort members,
-for eight model jobs. Each alternative is validated against the baseline; a
-`std:1` alternative is not valid with a one-dimensional baseline.
+Each alternative is validated against the baseline; a `std:1` alternative is
+not valid with a one-dimensional baseline.
 
 Unselected likelihood parameters stay fixed at `fixed_mean`, `fixed_std`, or
 named entries in `problem.fixed`. They are **not marginalized nuisance

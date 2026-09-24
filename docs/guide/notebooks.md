@@ -6,9 +6,13 @@ where you installed NNPD.
 
 | Notebook | Purpose |
 |---|---|
-| `01_run.ipynb` | Plan and run the smoke study. |
+| `01_run.ipynb` | Plan and run the selected profile. |
 | `02_inspect.ipynb` | Read completed results, reload models/products, call hooks, and export CSV. |
-| `03_extensions.ipynb` | Run the additional-metric and custom-plot example using compatible cached data/models. |
+| `03_extensions.ipynb` | Add metrics and a plot to already trained models, without training. |
+
+Each notebook starts with `PROFILE = "smoke"`. Set it to `"default"` or `"paper"`
+in all three to work with that profile instead; `02` and `03` only need its
+models to have been trained, by `01` or by `python run.py train --profile <name>`.
 
 They are included in the repository under `notebooks/`. The website offers the
 same files as downloads, without executing them during documentation builds:

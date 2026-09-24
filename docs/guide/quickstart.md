@@ -63,8 +63,8 @@ an existing model on a different device, use `restore`, as shown in
 
 ## Move to a larger profile deliberately
 
-The shipped presets are `default`, `paper`, `smoke`, `mixed`, `extended`, and
-`smoke_ddp`. The default preset is `default`, but the default action is `plan`.
+The shipped presets are `default`, `paper`, and `smoke`. The default preset is
+`default`, but the default action is `plan`.
 Start with:
 
 ```bash

@@ -53,17 +53,28 @@ and `showcase`. A hook may return multiple figures. In particular, inference
 plots include parameter estimates and diagnostic marginal/pairwise projections.
 These are examples, not a fixed publication style.
 
-In the `extended` profile, `median_absolute_bias` shares inference data,
-`parameter_count` uses the model directly, and `observation_histogram` accesses
-the observation ensemble, model class, and prior measure.
+## Add analysis after training
 
-```bash
-python run.py run --profile smoke
-python run.py run --profile extended
+`gaussian/extensions.py` registers three more hooks: `median_absolute_bias` shares
+inference data, `parameter_count` uses the model directly, and
+`observation_histogram` accesses the observation ensemble, model class, and prior
+measure. After `python run.py run --profile smoke`, add them to the trained models:
+
+```python
+from settings import make_config
+from nnpd import execute, load_experiment
+
+config = make_config("smoke")
+config["application"] = "gaussian.extensions:ExtendedGaussian"
+config["metrics"] += ["median_absolute_bias", "parameter_count"]
+config["plots"] += ["observation_histogram"]
+execute(config, load_experiment(config["application"]), stage="analyze")
 ```
 
-`extended` deliberately uses `outputs/smoke`, so compatible trained artifacts
-can be reused rather than duplicated in a separate cache root.
+The `analyze` stage never trains. Because the configuration keeps the profile's
+output root, it reuses the saved models and shared products. The same works for
+any profile after `python run.py train --profile <name>`: replace `"smoke"`.
+`notebooks/03_extensions.ipynb` runs these steps for its `PROFILE`.
 
 ## Complete registration and extension examples
 

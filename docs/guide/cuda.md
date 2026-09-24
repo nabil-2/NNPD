@@ -38,11 +38,10 @@ store.
 
 ## Collective DDP training
 
-The `smoke_ddp` preset selects `runtime.parallel="ddp"` and a single uniform-prior
-cohort member:
+Set `runtime.parallel="ddp"` in the settings file, then launch:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node=2 run.py run --profile smoke_ddp
+CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node=2 run.py run --profile smoke
 ```
 
 All workers train each model together. Its analysis runs on rank zero.

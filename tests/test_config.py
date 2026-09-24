@@ -76,7 +76,13 @@ def test_default_configuration_is_explicit():
 
 
 def test_network_and_dependency_options_are_ofat():
-    jobs = plan(make_config("mixed"), GaussianExperiment())
+    config = make_config("smoke")
+    config["problem"]["dimension"] = 2
+    config["problem"]["infer"] = Choice([["mean:*"], ["mean:*", "std:1"]])
+    config["model"]["kind"] = Choice(["mlp", "residual"])
+    config["training"]["learning_rate"] = Choice([0.001, 0.01])
+    config["cohort"]["priors"] = ["uniform", "normal"]
+    jobs = plan(config, GaussianExperiment())
     assert len(jobs) == 8  # 4 scientific configurations, 2-prior cohort
     assert {job.workload["network_inputs"] for job in jobs} == {4, 5}
     for job in jobs:
