@@ -16,8 +16,10 @@ on:
 permissions:
   contents: read
 
+# One group per trigger: a newer push or pull-request check replaces an older one,
+# but a push never cancels a manual publish, and a publish never cancels a check.
 concurrency:
-  group: docs-${{ github.ref }}
+  group: docs-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
