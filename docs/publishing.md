@@ -68,8 +68,8 @@ workflow. Because the branch is chosen at dispatch time, the website can be
 published from a branch other than `main` when that is what you want.
 
 The workflow uploads only the built HTML directory, not arbitrary training
-outputs. The website deliberately contains the documentation and downloadable
-notebooks. Review documentation content before
+outputs. The website deliberately contains the documentation, the downloadable
+notebooks, and the paper PDF. Review documentation content before
 publishing; a private code repository does not by itself imply a private website.
 
 ## Build and preview locally

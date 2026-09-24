@@ -1,7 +1,9 @@
 # NNPD — a small, modular experiment framework
 
-NNPD implements the Gaussian study of *Prior Dependence in Neural Ratio
-Estimation* on top of a small, reusable experiment framework. The framework
+NNPD implements the Gaussian study of the paper
+[*Prior Dependence in Neural Ratio Estimation*](https://openreview.net/pdf?id=kdy81q0tOX)
+(Salama, Fraser, Chang, Nachman; PAI26; PDF also in `docs/NNPD_paper_PAI26.pdf`)
+on top of a small, reusable experiment framework. The framework
 does not import the Gaussian application or the settings files.
 
 Everything is split into **training** (what is trained) and **analysis** (what is

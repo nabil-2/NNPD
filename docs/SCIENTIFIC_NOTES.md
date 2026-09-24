@@ -2,8 +2,9 @@
 
 ## Basis and scope
 
-The Gaussian application implements the study described in *Prior Dependence in
-Neural Ratio Estimation*. This page records what that paper specifies, how its
+The Gaussian application implements the study described in
+[*Prior Dependence in Neural Ratio Estimation*](paper.md) (PAI26). Page, equation
+and figure numbers below refer to that paper. This page records what it specifies, how its
 quantities map to settings, where the implementation has to choose an
 interpretation, and which numerical limits apply when reading results.
 

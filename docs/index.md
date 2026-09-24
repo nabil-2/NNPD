@@ -4,7 +4,8 @@
 
 NNPD separates experiment execution from scientific choices, and training from
 analysis. The reusable core handles planning, training, shared artifacts, and
-results. The Gaussian application implements the neural-prior-dependence example.
+results. The Gaussian application implements the study of the paper
+[*Prior Dependence in Neural Ratio Estimation*](paper.md) (PAI26).
 What is trained is set in **`settings_training.py`**; what is computed from the
 trained models is set in **`settings_analysis.py`**, and can be changed and
 recomputed at any time without retraining.
@@ -72,6 +73,7 @@ STORAGE
 reference/settings
 reference/cli
 reference/api
+paper
 SCIENTIFIC_NOTES
 guide/testing
 guide/troubleshooting
