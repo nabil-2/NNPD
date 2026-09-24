@@ -2,31 +2,44 @@
 
 ## The smallest useful abstraction
 
-There is one abstract experiment, plus three small hook types. The runner knows
-about dependencies and files, not Gaussian means, a specific network, or metric
-names. Subclass `nnpd.Experiment` and implement:
+There are two classes, one per settings file, plus three small hook types. The
+runner knows about dependencies and files, not Gaussian means, a specific network,
+or metric names.
+
+**What is trained**: subclass `nnpd.Experiment` and implement:
 
 | Method | Responsibility |
 |---|---|
-| `make_problem(config)` | Construct the simulator/problem object. |
-| `make_prior(config, member, problem)` | Construct the prior and its sampler. |
+| `make_problem(settings)` | Construct the simulator/problem object. |
+| `make_prior(settings, member, problem)` | Construct the prior and its sampler. |
 | `sample_training(context, writer)` | Write the model's required training data; return JSON metadata. |
 | `build_model(context)` | Return a new untrained `torch.nn.Module`. |
 | `train(context, model)` | Train that model in place; return JSON-compatible history. |
 
-Optional methods supply validation, workload estimates, cohort members, cache
-signatures/source dependencies, and the product/metric/plot registries. A fixed
-comparison cohort defaults to one empty member. The core framework does not
-require using the bundled NRE trainer or even using a likelihood simulator class.
-`tests/test_pipeline.py::IndependentExample` demonstrates a non-Gaussian
-implementation with its own data schema and training function.
+Optional methods supply validation, a training workload estimate, cohort members,
+and cache signatures/source dependencies. A fixed comparison cohort defaults to one
+empty member. The `settings` arguments are the resolved training settings.
 
-For a new application, create an importable Python package and set, for example,
-`"application": "my_application:MyExperiment"` in `settings.py`. The class must
-have a no-argument constructor; scientific choices belong in the supplied config.
-The common runner settings are `output`, `runtime`, `metrics`, `plots` and
-`plotting.dpi`; other settings are owned by the application. The generic seed
-helper uses `seed` when present, otherwise zero.
+**What is computed from the trained models**: subclass `nnpd.Analysis` and override
+`products()`, `metrics()` and `plots()`, which return named `Product`, `Metric` and
+`Plot` registrations. Optional `validate(settings)` checks the analysis settings,
+and `estimate(settings, problem, prior)` returns the analysis workload of one
+model, with limit violations in `"errors"`. An analysis never trains.
+
+The core framework does not require using the bundled NRE trainer or even using a
+likelihood simulator class. `tests/test_pipeline.py::IndependentExample` and
+`IndependentAnalysis` demonstrate a non-Gaussian implementation with its own data
+schema, training function and metric.
+
+For a new application, create an importable Python package and name its classes
+in the settings files, for example `"experiment": "my_application:MyExperiment"`
+in `settings_training.py` and `"analysis": "my_application:MyAnalysis"` in
+`settings_analysis.py`. The classes must have a no-argument constructor;
+scientific choices belong in the settings. The runner itself reads `experiment`,
+`output` and `runtime` from the training settings and `analysis`, `metrics`,
+`plots` and `plotting.dpi` from the analysis settings; all other settings are owned
+by the application. The generic seed helper uses the training `seed` when present,
+otherwise zero.
 
 ## A new simulator or prior
 
@@ -65,7 +78,7 @@ For example, put this in a normal Python module:
 ```python
 import numpy as np
 from nnpd import Product, Metric
-from gaussian import GaussianExperiment
+from gaussian import GaussianAnalysis
 
 
 def build_absolute_errors(context, dependencies, writer):
@@ -83,7 +96,7 @@ def median_error(context, dependencies):
     return float(np.median(dependencies["absolute_errors"].array("absolute_error")))
 
 
-class MyExperiment(GaussianExperiment):
+class MyAnalysis(GaussianAnalysis):
     def products(self):
         return {
             **super().products(),
@@ -103,10 +116,11 @@ class MyExperiment(GaussianExperiment):
         }
 ```
 
-Select `custom_mean` and `custom_median` in the settings file's `metrics` list.
-Both consume the same persisted absolute-error data. The model and the shared
-inference product are not retrained/recomputed just because another consumer was
-registered. If no selected hook needs a product, it is not built.
+Set `"analysis": "my_module:MyAnalysis"` in `settings_analysis.py`, add
+`custom_mean` and `custom_median` to its `metrics` list, and run `analyze`. Both
+consume the same persisted absolute-error data. The model and the shared inference
+product are not retrained/recomputed just because another consumer was registered.
+If no selected hook needs a product, it is not built.
 
 For large arrays, use `writer.allocate(name, shape, dtype)` to get a writable
 NumPy memory map and fill it in chunks. `writer.array` writes an ordinary numeric
@@ -116,8 +130,9 @@ Ragged data can be represented by flat numeric arrays plus offsets.
 ## Cache correctness is part of the hook contract
 
 `Product.settings(context)` must include **every setting read by its builder**
-that is not already captured in a dependency artifact. The default is the entire
-configuration: conservative and safe, but less reusable. Reduce it only when the
+that is not already captured in a dependency artifact. Builders read
+`context.training_settings` and `context.analysis_settings`. The default is both
+complete settings dictionaries: conservative and safe, but less reusable. Reduce it only when the
 builder truly depends on fewer fields. Include explicit dataset-release IDs or
 file checksums for external inputs.
 
@@ -131,7 +146,7 @@ Product(builder, needs=("model",), sources=(external_helper, CustomSimulator))
 
 This is intentionally not a magical recursive import tracker. Dynamically loaded
 code, external files, service responses and simulator releases are **not** inferred.
-List their source dependencies or change the explicit version/config identifier.
+List their source dependencies or change the explicit version/settings identifier.
 The experiment's `sources("data")`, `sources("model")` and
 `signature(stage, context)` follow the same rule for root datasets and checkpoints.
 Changing a metric or a plotting module does not belong in a model fingerprint.
@@ -185,27 +200,27 @@ of fault tolerance is needed.
 ## Reload and compare results
 
 ```python
-from nnpd import load_experiment, restore
+from nnpd import restore
 from nnpd.results import runs, export_csv, comparison_plot
 
 records = runs("outputs/smoke")
 record = records[0]
-experiment = load_experiment(record["config"]["application"])
-context = restore(record["path"], experiment, device="cpu")
+context = restore(record["path"], device="cpu")
 model = context.model
 observations = context.require("observations").array("observations")
 summary = context.require("inference")
 
 export_csv("outputs/smoke", "outputs/summary.csv", {
     "prior": "member.prior",
-    "dimension": "config.problem.dimension",
+    "dimension": "settings.problem.dimension",
     "absolute_bias": "metrics.bias.mean_absolute",
     "coverage_68": "metrics.coverage.projected_mean.0",
 })
 ```
 
-`restore` reloads data/weights without training. Requiring a derived product checks
-its current recipe; changed analysis code may rebuild that product. To reproduce
+`restore` reloads data/weights without training, with the experiment and analysis
+classes and settings the run was trained and analyzed with. Requiring a derived
+product checks its current recipe; changed analysis code may rebuild that product. To reproduce
 an earlier analysis, use the saved source snapshot and compatible package versions.
 Or inspect its artifact arrays directly using the paths in `artifacts.json`.
 Filter `records` before plotting to keep different OFAT axes, replicas or backends

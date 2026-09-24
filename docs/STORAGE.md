@@ -6,8 +6,9 @@ Each selected output root owns its own store. For example:
 
 ```text
 outputs/smoke/
-  settings.py              copy of the settings file of the latest successful launch
-  history.json             the last three distinct settings and what they used
+  settings_training.py     copy of the training settings of the latest successful training
+  settings_analysis.py     copy of the analysis settings of the latest successful analysis
+  history.json             the last three distinct training settings and what they used
   source/<source-hash>.zip
   cache/
     training/<key>/
@@ -30,6 +31,7 @@ outputs/smoke/
       uniform-r0-<job-hash>/
         run.json
         status.json
+        analysis.json
         artifacts.json
         metrics.json
         metrics/<metric-name>.json
@@ -38,32 +40,39 @@ outputs/smoke/
   locks/...
 ```
 
-Folder hashes disambiguate settings; readable names identify the changed knob and
-cohort member. `run.json` is the authority for the full configuration, including
-the training backend—do not decode settings from a filename.
+Folder hashes disambiguate training settings; readable names identify the changed
+knob and cohort member. `run.json` is the authority for the resolved training
+settings, including the training backend—do not decode settings from a filename.
+`status.json` holds the training state. `analysis.json` holds the analysis
+settings and state (`running`, `complete`, or `failed` with a traceback) of the
+latest analysis of the run; it is absent until the run has been analyzed.
 
 ## Latest settings win
 
 An output root holds one experiment. After a launch succeeds:
 
-- `runs/` holds only that launch's run folders. Runs of earlier settings are removed.
-- `settings.py` is a byte-for-byte copy of the settings file that launch started
-  from. Run it again with `python run.py run --config outputs/smoke/settings.py
-  --profile smoke`. Settings changed in Python on top of the file are not in the
-  copy; `run.json` records the complete settings of each run. A launch from Python
-  without `settings_file=` saves no copy, and any older copy is removed.
-- `cache/` and `source/` keep only what the **last three distinct settings** used,
+- `runs/` holds only the run folders of the latest training. Runs of earlier
+  training settings are removed. `train` starts each run's analysis over;
+  `analyze` replaces each run's metrics, plots and `analysis.json`.
+- The settings files the launch used are copied byte for byte into the output
+  folder: `train` copies `settings_training.py`, `analyze` copies
+  `settings_analysis.py`, and `run` copies both. Run them again with
+  `python run.py run --profile smoke --settings-dir outputs/smoke`.
+- `cache/` and `source/` keep only what the **last three distinct training
+  settings** used, including the analysis data of the latest analysis of each,
   recorded in `history.json`. Everything else is deleted.
 
-Switching back to one of the previous two settings therefore reuses its trained
-models and analysis data. Launching the same settings again, for example `train`
-followed by `analyze`, does not use up another of the three. A failed or
-interrupted launch deletes nothing. With several `torchrun` workers, the worker
-that finishes last does the cleanup.
+Switching back to one of the previous two training settings therefore reuses its
+trained models and analysis data. Launching the same training settings again, or
+analyzing them, does not use up another of the three; training the same settings
+again keeps their analysis data for the next `analyze`. A failed or interrupted
+launch deletes no runs, models or cached data. With several `torchrun` workers,
+the worker that finishes last does the cleanup.
 
-`source/<hash>.zip` snapshots the framework, the experiment class's application
-folder, local settings/entry-point/packaging files, and an explicitly supplied
-custom settings file. Third-party packages, remotely imported helpers outside
+`source/<hash>.zip` snapshots the framework, the application folder of the
+experiment (for training) or analysis class (for analysis), the entry-point and
+packaging files, and the settings file used. `run.json` and `analysis.json` name
+their snapshots. Third-party packages, remotely imported helpers outside
 those folders, external datasets and execution environments are not vendored by
 this snapshot. The resolved settings and package/backend identifiers are also
 saved independently in the run and artifact records.
@@ -80,11 +89,11 @@ Typical sharing in the Gaussian study:
 
 | Change | Reused | Recomputed |
 |---|---|---|
-| Add a metric using existing inference | Training, weights, observations, inference | The selected metric outputs/plots |
+| Add a metric using existing inference (analysis settings) | Training, weights, observations, inference | The selected metric outputs/plots |
 | Change learning rate | Training data, common truth/verification observations, candidates | Model and model-dependent products |
 | Change network architecture | Training data, common observations, candidates | Model and predictions/inference |
 | Change selected parameter set | Only compatible products, if any | Data/model/layout-dependent products |
-| Change HLD levels or retained scores | Data, model, truth ensembles, candidates | Inference product and consumers |
+| Change HLD levels or retained scores (analysis settings) | Data, model, truth ensembles, candidates | Inference product and consumers |
 | Change plot labels/implementation | Scientific products and weights | Plots |
 | Change CPU to CUDA or DDP world size | Compatible sampled data | Distinct model artifact |
 
@@ -95,9 +104,9 @@ rebuilds inference rather than recomputing thresholds from previously retained
 scores. This is a simplicity/storage tradeoff. A custom
 raw-score product can separate those operations for a more specialized workflow.
 
-Different output roots do not share a global cache automatically. Use the same
-root for related configurations and analysis-only extensions, as
-`notebooks/03_extensions.ipynb` does for the smoke study.
+Different output roots do not share a global cache automatically. Related
+configurations and later analyses of the same models use the same root: each
+profile has one, and `analyze` always works in it.
 
 ## Numeric products and shape conventions
 
@@ -173,8 +182,8 @@ file corruption is detectable by this explicit deep check, not by the fast check
 `artifacts.json` uses relative paths, so moving the **whole output root** preserves
 reload references. Moving an individual run folder without its store does not.
 `restore` defaults to CPU and does not inherit stale torchrun rank variables.
-The original config remains a provenance record; it is not silently rewritten when
-an output root is relocated.
+The recorded settings remain a provenance record; they are not silently rewritten
+when an output root is relocated.
 
 Arrays are loaded with `allow_pickle=False`; checkpoints use
 `torch.load(..., weights_only=True)`. Settings and application modules are trusted

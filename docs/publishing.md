@@ -12,7 +12,7 @@ application, or require a GPU.
 
 ## Publish on GitHub
 
-1. Make sure the repository root contains `settings.py`, `docs/`, and the hidden
+1. Make sure the repository root contains the settings files, `docs/`, and the hidden
    `.github/workflows/docs.yml`. GitHub only runs workflows from that location.
 2. In the repository, open **Settings → Pages**. Under **Build and deployment**,
    set **Source** to **GitHub Actions**.

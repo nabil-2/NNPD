@@ -11,18 +11,18 @@ import torch.distributed as dist
 
 
 class Runtime:
-    def __init__(self, config: dict, *, initialize: bool = True):
-        self.deterministic = bool(config["deterministic"])
-        self.cpu_threads = int(config["cpu_threads"])
+    def __init__(self, settings: dict, *, initialize: bool = True):
+        self.deterministic = bool(settings["deterministic"])
+        self.cpu_threads = int(settings["cpu_threads"])
         if self.deterministic:
             os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
         self.rank = int(os.environ.get("RANK", "0")) if initialize else 0
         self.world_size = int(os.environ.get("WORLD_SIZE", "1")) if initialize else 1
         self.local_rank = int(os.environ.get("LOCAL_RANK", "0")) if initialize else 0
-        self.parallel = config["parallel"]
+        self.parallel = settings["parallel"]
         if self.parallel not in {"jobs", "ddp"}:
             raise ValueError("runtime.parallel must be 'jobs' or 'ddp'.")
-        requested = config["device"]
+        requested = settings["device"]
         if requested == "auto":
             requested = "cuda" if torch.cuda.is_available() else "cpu"
         self.device = torch.device(requested)
@@ -40,14 +40,14 @@ class Runtime:
             torch.cuda.set_device(self.device)
         self.ddp = self.parallel == "ddp" and self.world_size > 1
         self.leader = not self.ddp or self.rank == 0
-        torch.set_num_threads(int(config["cpu_threads"]))
-        torch.use_deterministic_algorithms(bool(config["deterministic"]))
+        torch.set_num_threads(int(settings["cpu_threads"]))
+        torch.use_deterministic_algorithms(bool(settings["deterministic"]))
         self._owns_group = False
         if initialize and self.ddp:
             if dist.is_initialized():
                 raise RuntimeError("A process group is already active; do not nest execute() calls.")
             dist.init_process_group("nccl" if self.device.type == "cuda" else "gloo",
-                                    timeout=timedelta(minutes=config["timeout_minutes"]))
+                                    timeout=timedelta(minutes=settings["timeout_minutes"]))
             self._owns_group = True
 
     @property

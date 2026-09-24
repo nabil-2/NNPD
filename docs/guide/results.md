@@ -7,7 +7,7 @@ array shapes, and relocation in detail.
 ## List runs and restore a model
 
 ```python
-from nnpd import load_experiment, restore
+from nnpd import restore
 from nnpd.results import runs
 
 records = runs("outputs/smoke")
@@ -15,19 +15,23 @@ if not records:
     raise RuntimeError("First run: python run.py run --profile smoke")
 
 record = records[0]
-experiment = load_experiment(record["config"]["application"])
-context = restore(record["path"], experiment, device="cpu")
+context = restore(record["path"], device="cpu")
 model = context.model
 observations = context.require("observations").array("observations")
 inference = context.require("inference")
 ```
 
-`runs` returns the complete runs of the latest settings by default; earlier
+`runs` returns the analyzed runs of the latest settings by default; earlier
 settings' runs are replaced when you run again (see
-[Change settings and run again](quickstart.md#change-settings-and-run-again)). Pass `complete_only=False` to include
-trained-only or failed records and inspect their `status`. `restore` loads the
-saved configuration and verifies existing artifact files. It defaults to CPU and
-does not inherit stale distributed rank variables.
+[Change settings and run again](quickstart.md#change-settings-and-run-again)).
+Each record holds the run's `settings` (training), `member`, `backend`, `status`
+(training state), `analysis` (analysis settings and state), `metrics`, and `path`.
+Pass `complete_only=False` to include trained-only runs and failed analyses.
+
+`restore` opens a run with the experiment and analysis it was trained and analyzed
+with, and verifies the referenced artifact files. It defaults to CPU and does not
+inherit stale distributed rank variables. For a trained but not yet analyzed run,
+`context.analysis` is `None` and analysis datasets are unavailable.
 
 `context.model` builds the matching architecture and loads saved tensor weights;
 it does not train. `context.require(name)` resolves the **current** product
@@ -62,11 +66,11 @@ moving only one run directory does not preserve its cache.
 ```python
 from matplotlib import pyplot as plt
 
-metric = experiment.metrics()["bias"]
+metric = context.analysis.metrics()["bias"]
 value = metric.compute(context, context.dependencies(metric.needs))
 print(value)
 
-plot = experiment.plots()["inference"]
+plot = context.analysis.plots()["inference"]
 figures = plot.draw(context, context.dependencies(plot.needs))
 try:
     output = Path("outputs/manual-plots")
@@ -79,7 +83,9 @@ finally:
 ```
 
 The built-in runner saves PNGs. Calling the same plot hook directly allows other
-formats and interactive notebook display. Close figures you create outside the
+formats and interactive notebook display. Hooks of another analysis class, such as
+`gaussian.extensions.ExtendedAnalysis()`, can be called on the same context in the
+same way, to try a metric before adding it to `settings_analysis.py`. Close figures you create outside the
 runner when you no longer need them.
 
 ## Export a comparison table
@@ -89,14 +95,14 @@ from nnpd.results import export_csv
 
 export_csv("outputs/smoke", "outputs/summary.csv", {
     "prior": "member.prior",
-    "dimension": "config.problem.dimension",
+    "dimension": "settings.problem.dimension",
     "absolute_bias": "metrics.bias.mean_absolute",
     "coverage_68": "metrics.coverage.projected_mean.0",
 })
 ```
 
 Dotted paths traverse dictionaries and lists. The `.0` coverage example assumes
-the first configured level is 0.68; inspect `metrics.coverage.levels` when changing
+the first level in `settings_analysis.py` is 0.68; inspect `metrics.coverage.levels` when changing
 level order. Missing fields become blank CSV cells.
 
 `comparison_plot(records, x_path, metric_path, group_path="member.prior")` returns

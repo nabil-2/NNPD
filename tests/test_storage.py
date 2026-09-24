@@ -3,12 +3,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from nnpd import Metric, Product, plan
+from nnpd import Metric, Product
 from nnpd.core.api import Context, implementation_hash
 from nnpd.core.runtime import Runtime
 from nnpd.core.storage import Artifact, Store, safe_name
-from nnpd.core.runner import verify_store
-from gaussian import GaussianExperiment
+from nnpd.core.runner import expand_jobs, verify_store
+from gaussian import GaussianAnalysis, GaussianExperiment
 
 
 def first_builder(context, dependencies, writer):
@@ -79,7 +79,7 @@ def test_object_arrays_rejected(tmp_path):
         store.get("data", "abc", {}, lambda writer: writer.array("x", np.array([{}], dtype=object)))
 
 
-class ProductsOnly(GaussianExperiment):
+class ProductsOnly(GaussianAnalysis):
     entries = {}
     def products(self):
         return self.entries
@@ -89,40 +89,50 @@ class ProductsOnly(GaussianExperiment):
         return {}
 
 
-def context_for(tiny, experiment):
-    member = experiment.members(tiny)[0]
-    return Context(experiment, tiny, member, Store(tiny["output"]), Runtime(tiny["runtime"]), Path(tiny["output"]) / "run")
+def context_for(training, analysis, analysis_settings):
+    experiment = GaussianExperiment()
+    member = experiment.members(training)[0]
+    return Context(experiment, training, member, Store(training["output"]), Runtime(training["runtime"]),
+                   Path(training["output"]) / "run", analysis, analysis_settings)
 
 
 def test_shared_product_builds_once_and_key_controls_reuse(tiny):
-    experiment = ProductsOnly()
-    experiment.entries = {"shared": Product(first_builder, settings=lambda context: {"seed": context.config["seed"]})}
-    context = context_for(tiny, experiment)
+    analysis = ProductsOnly()
+
+    def seed(context):
+        return {"seed": context.training_settings["seed"]}
+
+    analysis.entries = {"shared": Product(first_builder, settings=seed)}
+    context = context_for(tiny.training, analysis, tiny.analysis)
     a = context.require("shared")
     assert context.require("shared") is a
     stamp = (a.path / "x.npy").stat().st_mtime_ns
-    other = context_for({**tiny, "metrics": ["anything"]}, experiment)
+    other = context_for(tiny.training, analysis, {**tiny.analysis, "metrics": ["anything"]})
     assert other.require("shared").path == a.path
     assert (a.path / "x.npy").stat().st_mtime_ns == stamp
-    changed = context_for({**tiny, "seed": tiny["seed"] + 1}, experiment)
+    changed = context_for({**tiny.training, "seed": tiny.training["seed"] + 1}, analysis, tiny.analysis)
     assert changed.require("shared").path != a.path
-    experiment.entries["shared"] = replace(experiment.entries["shared"], version="2")
-    assert context_for(tiny, experiment).require("shared").path != a.path
-    experiment.entries["shared"] = Product(second_builder, settings=lambda context: {"seed": context.config["seed"]})
-    assert len(context_for(tiny, experiment).require("shared").array("x")) == 5
+    analysis.entries["shared"] = replace(analysis.entries["shared"], version="2")
+    assert context_for(tiny.training, analysis, tiny.analysis).require("shared").path != a.path
+    analysis.entries["shared"] = Product(second_builder, settings=seed)
+    assert len(context_for(tiny.training, analysis, tiny.analysis).require("shared").array("x")) == 5
 
 
 def test_dependency_cycle_and_missing_names_fail_before_training(tiny):
-    tiny["metrics"], tiny["plots"] = [], []
-    experiment = ProductsOnly()
-    experiment.entries = {"a": Product(first_builder, ("b",)), "b": Product(first_builder, ("a",))}
+    tiny.analysis["metrics"], tiny.analysis["plots"] = [], []
+    analysis = ProductsOnly()
+
+    def plan():
+        return expand_jobs(tiny.training, GaussianExperiment(), tiny.analysis, analysis)
+
+    analysis.entries = {"a": Product(first_builder, ("b",)), "b": Product(first_builder, ("a",))}
     with pytest.raises(ValueError, match="cycle"):
-        plan(tiny, experiment)
+        plan()
     with pytest.raises(ValueError, match="cycle"):
-        context_for(tiny, experiment).require("a")
-    experiment.entries = {"a": Product(first_builder, ("missing",))}
+        context_for(tiny.training, analysis, tiny.analysis).require("a")
+    analysis.entries = {"a": Product(first_builder, ("missing",))}
     with pytest.raises(KeyError, match="missing"):
-        plan(tiny, experiment)
-    experiment.entries = {"model": Product(first_builder)}
+        plan()
+    analysis.entries = {"model": Product(first_builder)}
     with pytest.raises(ValueError, match="reserved"):
-        plan(tiny, experiment)
+        plan()

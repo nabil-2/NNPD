@@ -1,4 +1,4 @@
-"""Plan first; cache data and training; compute only requested analysis products."""
+"""Plan first; train and cache models; analyze saved models with separate analysis settings."""
 from __future__ import annotations
 
 from contextlib import nullcontext
@@ -14,32 +14,35 @@ import uuid
 import zipfile
 
 import numpy as np
-import torch
 
-from .api import Context, Experiment, implementation_hash
-from .config import at, digest, expand_sweep
+from .api import Analysis, Context, Experiment, implementation_hash, load_analysis, load_experiment
 from .runtime import Runtime, seed_all
+from .settings import at, default_profile, digest, expand_sweep, load_settings, single
 from .storage import Artifact, Store, file_hash, safe_name, utc_now, write_json
+
+TRAINING_FILE = "settings_training.py"
+ANALYSIS_FILE = "settings_analysis.py"
+KEEP_SETTINGS = 3  # the cache keeps the artifacts used by this many most recent training settings
+STAGES = ("train", "run", "analyze")
 
 
 @dataclass(frozen=True)
 class Job:
-    config: dict
+    settings: dict
     member: dict
     changed: str | None
     workload: dict
 
     @property
     def id(self) -> str:
-        return digest({"config": self.config, "member": self.member})
+        return digest({"settings": self.settings, "member": self.member})
 
     def as_dict(self) -> dict:
-        return {"id": self.id, "changed": self.changed, "member": self.member,
-                "config": self.config, "workload": self.workload}
+        return {"id": self.id, "changed": self.changed, "member": self.member, "settings": self.settings}
 
 
-def _validate_hooks(experiment):
-    products = experiment.products()
+def _validate_analysis(settings: dict, analysis: Analysis) -> None:
+    products = analysis.products()
     if set(products) & {"training", "model"}:
         raise ValueError("training and model are reserved root datasets.")
     complete, active = {"training", "model"}, []
@@ -60,33 +63,54 @@ def _validate_hooks(experiment):
 
     for name in products:
         visit(name)
-    for hooks in (experiment.metrics(), experiment.plots()):
+    for hooks in (analysis.metrics(), analysis.plots()):
         for name, hook in hooks.items():
             safe_name(name)
             for dependency in hook.needs:
                 visit(dependency)
+    analysis.validate(settings)
+    for category, registry in (("metrics", analysis.metrics()), ("plots", analysis.plots())):
+        unknown = set(settings[category]) - registry.keys()
+        if unknown:
+            raise ValueError(f"Unknown {category}: {sorted(unknown)}")
+        if len(settings[category]) != len(set(settings[category])):
+            raise ValueError(f"Duplicate names in {category}.")
 
 
-def plan(config: dict, experiment: Experiment) -> list[Job]:
-    """Validate *every* option before starting the first run."""
-    _validate_hooks(experiment)
+def _launch_values(training_settings: dict) -> dict:
+    """experiment, output and runtime are shared by every job of one launch."""
+    variants = expand_sweep(training_settings)
+    values = {key: variants[0].settings[key] for key in ("experiment", "output", "runtime")}
+    for variant in variants[1:]:
+        for key, value in values.items():
+            if variant.settings[key] != value:
+                raise ValueError(f"{key} cannot vary within one launch; use separate launches.")
+    return values
+
+
+def expand_jobs(training_settings: dict, experiment: Experiment,
+                analysis_settings: dict | None = None, analysis: Analysis | None = None) -> list[Job]:
+    """Validate *every* training alternative, and the analysis of each, before anything runs."""
+    _launch_values(training_settings)
+    if analysis is not None:
+        analysis_settings = single(analysis_settings, "The analysis settings")
+        _validate_analysis(analysis_settings, analysis)
     jobs = []
-    for variant in expand_sweep(config):
-        cfg = variant.config
-        experiment.validate(cfg)
-        for category, registry in (("metrics", experiment.metrics()), ("plots", experiment.plots())):
-            unknown = set(cfg[category]) - registry.keys()
-            if unknown:
-                raise ValueError(f"Unknown {category}: {sorted(unknown)}")
-            if len(cfg[category]) != len(set(cfg[category])):
-                raise ValueError(f"Duplicate names in {category}.")
-        members = experiment.members(cfg)
+    for variant in expand_sweep(training_settings):
+        settings = variant.settings
+        experiment.validate(settings)
+        members = experiment.members(settings)
         if not members:
             raise ValueError("An experiment must have at least one cohort member.")
         if len({digest(member) for member in members}) != len(members):
             raise ValueError("Duplicate cohort members.")
         for member in members:
-            jobs.append(Job(cfg, member, variant.changed, experiment.estimate(cfg, member)))
+            workload = dict(experiment.estimate(settings, member))
+            if analysis is not None:
+                problem = experiment.make_problem(settings)
+                prior = experiment.make_prior(settings, member, problem)
+                workload.update(analysis.estimate(analysis_settings, problem, prior))
+            jobs.append(Job(settings, member, variant.changed, workload))
     return jobs
 
 
@@ -95,7 +119,7 @@ def infeasible(jobs: list[Job]) -> dict[str, list[str]]:
     found: dict[str, list[str]] = {}
     for job in jobs:
         if job.workload.get("errors"):
-            label = f"{job.changed}={at(job.config, job.changed)!r}" if job.changed else "baseline"
+            label = f"{job.changed}={at(job.settings, job.changed)!r}" if job.changed else "baseline"
             reasons = found.setdefault(label, [])
             reasons.extend(error for error in job.workload["errors"] if error not in reasons)
     return found
@@ -110,6 +134,45 @@ def check_feasible(jobs: list[Job]) -> None:
                          f"Change the named settings:\n{details}")
 
 
+@dataclass
+class _Launch:
+    """The settings files of one launch, loaded for one profile."""
+    profile: str
+    training_file: Path
+    training: dict
+    experiment: Experiment
+    output: Path
+    runtime: dict
+    analysis_file: Path | None = None
+    analysis_settings: dict | None = None
+    analysis: Analysis | None = None
+
+
+def _load(settings_dir: str | Path, profile: str | None, *, with_analysis: bool) -> _Launch:
+    folder = Path(settings_dir)
+    training_file = folder / TRAINING_FILE
+    if not training_file.is_file():
+        raise FileNotFoundError(f"{training_file} does not exist.")
+    profile = profile or default_profile(training_file)
+    training = load_settings(training_file, profile)
+    values = _launch_values(training)
+    launch = _Launch(profile, training_file, training, load_experiment(values["experiment"]),
+                     Store(values["output"]).root, values["runtime"])
+    if with_analysis:
+        launch.analysis_file = folder / ANALYSIS_FILE
+        if not launch.analysis_file.is_file():
+            raise FileNotFoundError(f"{launch.analysis_file} does not exist.")
+        launch.analysis_settings = single(load_settings(launch.analysis_file, profile), ANALYSIS_FILE)
+        launch.analysis = load_analysis(launch.analysis_settings["analysis"])
+    return launch
+
+
+def plan(profile: str | None = None, settings_dir: str | Path = ".") -> list[Job]:
+    """What `run` would train, with each model's analysis workload; computes nothing."""
+    launch = _load(settings_dir, profile, with_analysis=True)
+    return expand_jobs(launch.training, launch.experiment, launch.analysis_settings, launch.analysis)
+
+
 def _json_value(value):
     if isinstance(value, np.ndarray):
         return value.tolist()
@@ -122,21 +185,24 @@ def _json_value(value):
     return value
 
 
-def _source_snapshot(store: Store, experiment: Experiment, settings_file=None) -> str:
-    """Snapshot the framework, application, settings and entry-point sources used by this run."""
+def _read_json(path: Path, default=None):
+    return json.loads(path.read_text()) if path.is_file() else default
+
+
+def _source_snapshot(store: Store, classes: list[type], settings_files: list[Path]) -> str:
+    """Snapshot the framework, the application packages, and the settings files used."""
     package = Path(__file__).resolve().parents[1]
-    application = Path(inspect.getfile(type(experiment))).resolve().parent
     files = {f"nnpd/{path.relative_to(package)}": path for path in package.rglob("*.py")}
-    for path in application.rglob("*.py"):
-        files[f"{application.name}/{path.relative_to(application)}"] = path
-    for name in ("settings.py", "run.py", "pyproject.toml"):
-        path = application.parent / name
-        if path.exists():
-            files[name] = path
-    if settings_file is not None:
-        path = Path(settings_file).resolve()
-        if path != application.parent / "settings.py":
-            files[f"configuration/{path.name}"] = path
+    for cls in classes:
+        folder = Path(inspect.getfile(cls)).resolve().parent
+        for path in folder.rglob("*.py"):
+            files[f"{folder.name}/{path.relative_to(folder)}"] = path
+        for name in ("run.py", "pyproject.toml"):
+            path = folder.parent / name
+            if path.exists():
+                files[name] = path
+    for path in settings_files:
+        files[path.name] = Path(path).resolve()
     key = digest({name: file_hash(path) for name, path in sorted(files.items())})
     folder = store.root / "source"
     folder.mkdir(parents=True, exist_ok=True)
@@ -151,20 +217,14 @@ def _source_snapshot(store: Store, experiment: Experiment, settings_file=None) -
     return key
 
 
-def _prepare(context: Context, stage: str) -> None:
+def _train_model(context: Context) -> None:
+    """Get or build the training data and the model; every DDP worker takes part."""
     experiment = context.experiment
     recipe = {"experiment": experiment.name, "stage": "training",
               "settings": experiment.signature("data", context),
               "implementation": implementation_hash(experiment.sources("data"), experiment.version)}
-    key = digest(recipe)
-    if stage == "analyze":
-        artifact = context.store.existing("training", key)
-        if artifact is None:
-            raise FileNotFoundError("No matching training data. Run the 'train' or 'run' command first.")
-    else:
-        artifact = context.store.get("training", key, recipe,
-                                     lambda writer: experiment.sample_training(context, writer))
-    context.artifacts["training"] = artifact
+    context.artifacts["training"] = artifact = context.store.get(
+        "training", digest(recipe), recipe, lambda writer: experiment.sample_training(context, writer))
     recipe = {"experiment": experiment.name, "stage": "model", "training": artifact.key,
               "settings": experiment.signature("model", context),
               "backend": context.runtime.training_signature,
@@ -174,10 +234,7 @@ def _prepare(context: Context, stage: str) -> None:
     lock = context.store.lock("model", key) if runtime.leader else nullcontext()
     with lock:
         cached = context.store.existing("model", key) if runtime.leader else None
-        ready = runtime.broadcast(cached is not None)
-        if not ready:
-            if stage == "analyze":
-                raise FileNotFoundError("No matching model checkpoint; analysis never trains implicitly.")
+        if not runtime.broadcast(cached is not None):
             seed_all(experiment.model_seed(context))
             model = experiment.build_model(context).to(runtime.device)
             history = experiment.train(context, model)
@@ -194,24 +251,32 @@ def _prepare(context: Context, stage: str) -> None:
     context.artifacts["model"] = artifact
 
 
-def analyze(context: Context) -> dict:
-    """Evaluate selected hooks on an existing context; no training occurs here."""
+def _clear_results(run_dir: Path) -> None:
+    (run_dir / "metrics.json").unlink(missing_ok=True)
+    for name in ("metrics", "plots"):
+        shutil.rmtree(run_dir / name, ignore_errors=True)
+
+
+def analyze_run(context: Context) -> dict:
+    """Compute the selected metrics and plots of one run, replacing earlier ones. Never trains."""
+    settings = context.analysis_settings
+    _clear_results(context.run_dir)
     metrics = {}
-    for name in context.config["metrics"]:
-        hook = context.experiment.metrics()[name]
+    for name in settings["metrics"]:
+        hook = context.analysis.metrics()[name]
         value = hook.compute(context, context.dependencies(hook.needs))
         metrics[name] = _json_value(value)
         write_json(context.run_dir / "metrics" / f"{safe_name(name)}.json", metrics[name])
-    if context.config["plots"]:
+    if settings["plots"]:
         from matplotlib import pyplot as plt
-        for name in context.config["plots"]:
-            hook = context.experiment.plots()[name]
+        for name in settings["plots"]:
+            hook = context.analysis.plots()[name]
             figures = hook.draw(context, context.dependencies(hook.needs))
             try:
                 for stem, figure in figures.items():
                     path = context.run_dir / "plots" / safe_name(name) / f"{safe_name(stem)}.png"
                     path.parent.mkdir(parents=True, exist_ok=True)
-                    figure.savefig(path, dpi=context.config["plotting"]["dpi"], bbox_inches="tight")
+                    figure.savefig(path, dpi=settings["plotting"]["dpi"], bbox_inches="tight")
             finally:
                 for figure in figures.values():
                     plt.close(figure)
@@ -228,46 +293,125 @@ def save_references(context: Context) -> None:
     })
 
 
-KEEP_SETTINGS = 3  # the cache keeps the artifacts used by this many most recent distinct settings
-DONE = {"trained", "complete"}
-
-
 def _run_dir(job: Job) -> Path:
     variant = (job.changed or "baseline").replace(".", "_")
     member = safe_name(job.member.get("name", "member"))
-    return Store(job.config["output"]).root / "runs" / f"{variant}-{digest(job.config)[:12]}" / f"{member}-{job.id[:8]}"
+    return Store(job.settings["output"]).root / "runs" / f"{variant}-{digest(job.settings)[:12]}" / f"{member}-{job.id[:8]}"
 
 
-def _read_json(path: Path, default=None):
-    return json.loads(path.read_text()) if path.is_file() else default
+def _open(run_dir: Path, runtime: Runtime, analysis: Analysis | None = None,
+          analysis_settings: dict | None = None) -> Context:
+    """A context for a trained run: its saved training settings, data and model."""
+    run, references = _read_json(run_dir / "run.json"), _read_json(run_dir / "artifacts.json")
+    experiment = load_experiment(run["settings"]["experiment"])
+    if run["experiment"] != experiment.name:
+        raise ValueError("Wrong experiment class for this run.")
+    context = Context(experiment, run["settings"], run["member"], Store(run_dir / references["store_relative"]),
+                      runtime, run_dir, analysis, analysis_settings)
+    for name, relative in references["items"].items():
+        artifact = Artifact((run_dir / relative).resolve())
+        artifact.verify()
+        if name in {"training", "model"}:
+            context.artifacts[name] = artifact
+    return context
 
 
-def _finish_launch(root: Path, run_dirs: list[Path], settings_file, stage: str, launch: str) -> None:
-    """Latest settings win: keep only this launch's runs, and the cache of the last KEEP_SETTINGS settings.
+def _trained_jobs(launch: _Launch) -> tuple[list[Job], list[Path]]:
+    """The runs of the latest successful training in the output folder, with their analysis workload."""
+    history = _read_json(launch.output / "history.json", [])
+    if not history:
+        raise FileNotFoundError(f"No trained models in {launch.output}; run 'train' or 'run' first. "
+                                "Analysis never trains implicitly.")
+    _validate_analysis(launch.analysis_settings, launch.analysis)
+    jobs, run_dirs, experiments = [], [], {}
+    for relative in history[0]["runs"]:
+        run_dir = launch.output / relative
+        state = _read_json(run_dir / "status.json", {}).get("state")
+        if state != "trained":
+            raise FileNotFoundError(f"{run_dir} is not trained ({state}); run 'train' again. "
+                                    "Analysis never trains implicitly.")
+        run = _read_json(run_dir / "run.json")
+        spec = run["settings"]["experiment"]
+        experiment = experiments.setdefault(spec, load_experiment(spec))
+        problem = experiment.make_problem(run["settings"])
+        prior = experiment.make_prior(run["settings"], run["member"], problem)
+        workload = launch.analysis.estimate(launch.analysis_settings, problem, prior)
+        jobs.append(Job(run["settings"], run["member"], run["changed"], workload))
+        run_dirs.append(run_dir)
+    return jobs, run_dirs
 
-    The settings file the launch started from is copied byte for byte to <root>/settings.py.
+
+def _record_failure(path: Path, record: dict) -> None:
+    write_json(path, {**record, "state": "failed", "time": utc_now(), "traceback": traceback.format_exc()})
+
+
+def _train_run(context: Context, job: Job, source: str | None) -> None:
+    run_dir, runtime = context.run_dir, context.runtime
+    if runtime.leader:
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "analysis.json").unlink(missing_ok=True)  # new training: earlier analysis no longer applies
+        _clear_results(run_dir)
+        write_json(run_dir / "run.json", {**job.as_dict(), "experiment": context.experiment.name,
+                   "source_archive": source, "python": platform.python_version(),
+                   "backend": runtime.training_signature, "numpy": np.__version__, "started": utc_now()})
+        write_json(run_dir / "status.json", {"state": "running", "time": utc_now()})
+    try:
+        _train_model(context)
+    except Exception:
+        if runtime.leader:
+            _record_failure(run_dir / "status.json", {})
+        raise
+    if runtime.leader:
+        save_references(context)
+        write_json(run_dir / "status.json", {"state": "trained", "time": utc_now()})
+
+
+def _analyze(context: Context, source: str) -> None:
+    record = {"analysis": context.analysis.name, "settings": context.analysis_settings,
+              "source_archive": source, "started": utc_now()}
+    write_json(context.run_dir / "analysis.json", {**record, "state": "running"})
+    try:
+        analyze_run(context)
+    except Exception:
+        _record_failure(context.run_dir / "analysis.json", record)
+        raise
+    write_json(context.run_dir / "analysis.json", {**record, "state": "complete", "time": utc_now()})
+
+
+def _finish_launch(launch: _Launch, run_dirs: list[Path], stage: str, launch_id: str) -> None:
+    """Latest settings win: keep only this launch's runs, and the cache of the last KEEP_SETTINGS trainings.
+
+    The settings files the launch started from are copied byte for byte into the output folder.
     Only the process that finishes a launch last does this, so a failed or unfinished launch deletes nothing.
     """
-    store = Store(root)
-    with store.lock("experiment", "history"):
-        statuses = [_read_json(path / "status.json", {}) for path in run_dirs]
-        if any(status.get("state") not in DONE or status.get("launch") != launch for status in statuses):
+    root = launch.output
+    with Store(root).lock("experiment", "history"):
+        marks = [_read_json(path / "status.json", {}) for path in run_dirs]
+        if any(mark.get("launch") != launch_id for mark in marks):
             return  # other workers of this launch are still running; the last one cleans up
         used = set()
         for path in run_dirs:
             for relative in _read_json(path / "artifacts.json")["items"].values():
                 used.add((path / relative).resolve().relative_to(root).as_posix())
-            used.add(f"source/{_read_json(path / 'run.json')['source_archive']}.zip")
-        version = digest(sorted(path.relative_to(root).as_posix() for path in run_dirs))
-        history = [entry for entry in _read_json(root / "history.json", []) if entry["version"] != version]
-        history = [{"version": version, "time": utc_now(), "stage": stage, "uses": sorted(used)},
-                   *history][:KEEP_SETTINGS]
+            for record in ("run.json", "analysis.json"):
+                source = _read_json(path / record, {}).get("source_archive")
+                if source:
+                    used.add(f"source/{source}.zip")
+        runs = sorted(path.relative_to(root).as_posix() for path in run_dirs)
+        version = digest(runs)
+        history = _read_json(root / "history.json", [])
+        previous = next((entry for entry in history if entry["version"] == version), None)
+        if stage == "train" and previous:
+            # The same training again: keep its analysis data for the next analyze.
+            used |= {item for item in previous["uses"] if not item.startswith(("cache/training/", "cache/model/"))}
+        history = [{"version": version, "time": utc_now(), "stage": stage, "runs": runs, "uses": sorted(used)},
+                   *(entry for entry in history if entry["version"] != version)][:KEEP_SETTINGS]
         write_json(root / "history.json", history)
-        saved = root / "settings.py"
-        if settings_file is None:
-            saved.unlink(missing_ok=True)  # never keep a copy that belongs to earlier settings
-        elif Path(settings_file).resolve() != saved:
-            shutil.copyfile(settings_file, saved)
+        files = {"train": [launch.training_file], "analyze": [launch.analysis_file],
+                 "run": [launch.training_file, launch.analysis_file]}[stage]
+        for path in files:
+            if path.resolve() != (root / path.name).resolve():
+                shutil.copyfile(path, root / path.name)
         keep = {item for entry in history for item in entry["uses"]}
         current = set(run_dirs)
         for path in (root / "runs").glob("*/*"):
@@ -286,87 +430,71 @@ def _finish_launch(root: Path, run_dirs: list[Path], settings_file, stage: str, 
                 path.unlink()
 
 
-def execute(config: dict, experiment: Experiment, *, stage: str = "run", settings_file=None) -> list[Path]:
-    """Same public entry point for scripts and notebooks.
+def execute(stage: str = "run", *, profile: str | None = None, settings_dir: str | Path = ".") -> list[Path]:
+    """Train, analyze, or both, from the settings files in settings_dir; the CLI does the same.
 
-    'jobs': torchrun workers process disjoint complete jobs, including inference.
-    'ddp': workers train each model together; only rank zero runs analysis hooks.
-    Checkpoints are stage-level: an interrupted, uncommitted training stage restarts.
-    After success, runs of earlier settings are removed, the cache keeps what the last
-    KEEP_SETTINGS distinct settings used, and settings_file (if given) is copied to
-    <output>/settings.py.
+    'train' trains the models of settings_training.py and resets their analysis.
+    'analyze' analyzes the latest trained models with settings_analysis.py; it never trains.
+    'run' does both. 'jobs': torchrun workers process disjoint runs; 'ddp': workers train
+    each model together and only rank zero analyzes. After success, runs of earlier settings
+    are removed, the cache keeps what the last KEEP_SETTINGS trainings used, and the settings
+    files are copied into the output folder.
     """
-    if stage not in {"train", "run", "analyze"}:
-        raise ValueError("stage must be train, run, or analyze.")
-    jobs = plan(config, experiment)
-    check_feasible(jobs)  # also for 'train': never train models whose analysis would be refused
-    runtime_config = jobs[0].config["runtime"]
-    if any(job.config["runtime"] != runtime_config for job in jobs):
-        raise ValueError("Runtime settings cannot vary within one launch; use separate launches.")
-    runtime = Runtime(runtime_config)
+    if stage not in STAGES:
+        raise ValueError(f"stage must be one of {STAGES}.")
+    launch = _load(settings_dir, profile, with_analysis=stage != "train")
+    if stage == "analyze":
+        jobs, run_dirs = _trained_jobs(launch)
+    else:
+        jobs = expand_jobs(launch.training, launch.experiment, launch.analysis_settings, launch.analysis)
+        run_dirs = [_run_dir(job) for job in jobs]
+    if stage != "train":
+        check_feasible(jobs)
+    runtime = Runtime(launch.runtime)
+    store = Store(launch.output)
     # torchrun gives all workers of one launch the same run ID; a single process makes its own.
-    launch = os.environ.get("TORCHELASTIC_RUN_ID") or uuid.uuid4().hex
-    run_dirs = [_run_dir(job) for job in jobs]
+    launch_id = os.environ.get("TORCHELASTIC_RUN_ID") or uuid.uuid4().hex
+    training_source = analysis_source = None
     completed = []
     try:
         for index, (job, run_dir) in enumerate(zip(jobs, run_dirs)):
             if not runtime.ddp and index % runtime.world_size != runtime.rank:
                 continue
-            store = Store(job.config["output"])
-            variant = (job.changed or "baseline").replace(".", "_")
-            member_name = safe_name(job.member.get("name", "member"))
-            context = Context(experiment, job.config, job.member, store, runtime, run_dir)
             if runtime.leader:
-                run_dir.mkdir(parents=True, exist_ok=True)
-                source = _source_snapshot(store, experiment, settings_file)
-                write_json(run_dir / "run.json", {**job.as_dict(), "experiment": experiment.name,
-                           "source_archive": source, "python": platform.python_version(),
-                           "backend": runtime.training_signature, "numpy": np.__version__,
-                           "started": utc_now()})
-                write_json(run_dir / "status.json", {"state": "running", "stage": stage, "time": utc_now()})
-                print(f"[{index + 1}/{len(jobs)}] {variant}: {member_name}", flush=True)
-            try:
-                _prepare(context, stage)
-                if runtime.leader:
-                    save_references(context)
-                    if stage != "train":
-                        analyze(context)
-                    write_json(run_dir / "status.json", {
-                        "state": "trained" if stage == "train" else "complete", "time": utc_now(),
-                        "launch": launch})
-                    completed.append(run_dir)
-                runtime.barrier()
-            except Exception:
-                if runtime.leader:
-                    write_json(run_dir / "status.json", {
-                        "state": "failed", "time": utc_now(), "traceback": traceback.format_exc()})
-                raise
+                if stage != "analyze" and training_source is None:
+                    training_source = _source_snapshot(store, [type(launch.experiment)], [launch.training_file])
+                if stage != "train" and analysis_source is None:
+                    analysis_source = _source_snapshot(store, [type(launch.analysis)], [launch.analysis_file])
+                variant = (job.changed or "baseline").replace(".", "_")
+                print(f"[{index + 1}/{len(jobs)}] {stage} {variant}: {job.member.get('name', 'member')}", flush=True)
+            if stage == "analyze":
+                context = _open(run_dir, runtime, launch.analysis, launch.analysis_settings)
+            else:
+                context = Context(launch.experiment, job.settings, job.member, store, runtime, run_dir,
+                                  launch.analysis, launch.analysis_settings)
+                _train_run(context, job, training_source)
+            if runtime.leader:
+                if stage != "train":
+                    _analyze(context, analysis_source)
+                # Marks this run as finished by this launch; the last worker to finish cleans up.
+                write_json(run_dir / "status.json", {**_read_json(run_dir / "status.json"), "launch": launch_id})
+                completed.append(run_dir)
+            runtime.barrier()
         if runtime.leader:
-            for root in sorted({path.parents[2] for path in run_dirs}):
-                _finish_launch(root, [path for path in run_dirs if path.parents[2] == root],
-                               settings_file, stage, launch)
+            _finish_launch(launch, run_dirs, stage, launch_id)
     finally:
         runtime.close()
     return completed
 
 
-def restore(run_dir: str | Path, experiment: Experiment, *, device: str = "cpu") -> Context:
-    """Open a saved run for arbitrary Python/notebook analysis on any supported device."""
+def restore(run_dir: str | Path, *, device: str = "cpu") -> Context:
+    """Open a saved run, with the analysis settings it was analyzed with, on any supported device."""
     run_dir = Path(run_dir).resolve()
-    run = json.loads((run_dir / "run.json").read_text())
-    refs = json.loads((run_dir / "artifacts.json").read_text())
-    if run["experiment"] != experiment.name:
-        raise ValueError("Wrong experiment class for this run.")
-    runtime_config = {**run["config"]["runtime"], "device": device}
-    context = Context(experiment, run["config"], run["member"],
-                      Store(run_dir / refs["store_relative"]),
-                      Runtime(runtime_config, initialize=False), run_dir)
-    for name, relative in refs["items"].items():
-        artifact = Artifact((run_dir / relative).resolve())
-        artifact.verify()
-        if name in {"training", "model"}:
-            context.artifacts[name] = artifact
-    return context
+    run = _read_json(run_dir / "run.json")
+    record = _read_json(run_dir / "analysis.json")
+    analysis = load_analysis(record["settings"]["analysis"]) if record else None
+    runtime = Runtime({**run["settings"]["runtime"], "device": device}, initialize=False)
+    return _open(run_dir, runtime, analysis, record["settings"] if record else None)
 
 
 def verify_store(root: str | Path) -> int:

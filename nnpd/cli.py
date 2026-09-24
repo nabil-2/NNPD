@@ -5,24 +5,23 @@ import argparse
 import json
 from pathlib import Path
 
-from .core.config import load_settings, at
-from .core.runner import check_feasible, execute, plan, verify_store
-from .core.api import load_experiment
+from .core.settings import at
+from .core.runner import STAGES, _load, check_feasible, execute, plan, verify_store
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Modular experiment runner; default action only prints a plan.")
-    parser.add_argument("action", choices=("plan", "run", "train", "analyze", "verify"), nargs="?", default="plan")
-    parser.add_argument("--config", type=Path, default=Path("settings.py"), help="Trusted Python settings file")
-    parser.add_argument("--profile", help="Profile from settings.py")
+    parser = argparse.ArgumentParser(description="Train and analyze from settings_training.py and "
+                                                 "settings_analysis.py; the default action only prints a plan.")
+    parser.add_argument("action", choices=("plan", *STAGES, "verify"), nargs="?", default="plan")
+    parser.add_argument("--profile", help="Profile of both settings files (default: DEFAULT_PROFILE)")
+    parser.add_argument("--settings-dir", type=Path, default=Path("."),
+                        help="Folder with settings_training.py and settings_analysis.py (default: current folder)")
     args = parser.parse_args(argv)
-    config = load_settings(args.config, args.profile)
-    experiment = load_experiment(config["application"])
     if args.action == "plan":
-        jobs = plan(config, experiment)
+        jobs = plan(args.profile, args.settings_dir)
         print(json.dumps({"jobs": [{"id": job.id, "changed": job.changed,
-                                    "changed_value": at(job.config, job.changed) if job.changed else None, "member": job.member,
-                                    "workload": job.workload} for job in jobs],
+                                    "changed_value": at(job.settings, job.changed) if job.changed else None,
+                                    "member": job.member, "workload": job.workload} for job in jobs],
                           "total_models": len(jobs),
                           "sweep_rule": "baseline plus one changed knob; fixed cohort per configuration"}, indent=2))
         try:
@@ -30,11 +29,10 @@ def main(argv=None):
         except ValueError as error:
             raise SystemExit(str(error)) from None
     elif args.action == "verify":
-        roots = sorted({job.config["output"] for job in plan(config, experiment)})
-        for root in roots:
-            print(f"{root}: verified {verify_store(root)} artifacts")
+        root = _load(args.settings_dir, args.profile, with_analysis=False).output
+        print(f"{root}: verified {verify_store(root)} artifacts")
     else:
-        execute(config, experiment, stage=args.action, settings_file=args.config)
+        execute(args.action, profile=args.profile, settings_dir=args.settings_dir)
 
 
 if __name__ == "__main__":

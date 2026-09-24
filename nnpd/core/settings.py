@@ -37,34 +37,34 @@ class Choice:
 
 @dataclass(frozen=True)
 class Variant:
-    config: dict
+    settings: dict
     changed: str | None
     value: Any = None
 
     @property
     def id(self) -> str:
-        return digest(self.config)
+        return digest(self.settings)
 
 
-def at(config: dict, path: str) -> Any:
-    value: Any = config
+def at(settings: dict, path: str) -> Any:
+    value: Any = settings
     for name in path.split("."):
         value = value[name]
     return value
 
 
-def select(config: dict, *paths: str) -> dict:
-    return {path: at(config, path) for path in paths}
+def select(settings: dict, *paths: str) -> dict:
+    return {path: at(settings, path) for path in paths}
 
 
-def expand_sweep(config: dict) -> list[Variant]:
+def expand_sweep(settings: dict) -> list[Variant]:
     """Baseline once, then one changed knob per run; never a Cartesian product.
 
     Dictionary insertion order determines presentation order, not run identity.
-    Duplicate resolved configurations are removed, including repeated baselines.
+    Duplicate resolved settings are removed, including repeated baselines.
     """
-    if not isinstance(config, dict):
-        raise TypeError("The top-level configuration must be a dictionary.")
+    if not isinstance(settings, dict):
+        raise TypeError("The top-level settings must be a dictionary.")
     knobs: list[tuple[tuple[str, ...], Choice]] = []
 
     def baseline(value: Any, path: tuple[str, ...]) -> Any:
@@ -73,14 +73,14 @@ def expand_sweep(config: dict) -> list[Variant]:
             return deepcopy(value.values[0])
         if isinstance(value, dict):
             if not all(isinstance(key, str) and key and "." not in key for key in value):
-                raise ValueError("Configuration dictionary keys must be nonempty strings without dots.")
+                raise ValueError("Settings dictionary keys must be nonempty strings without dots.")
             return {key: baseline(item, (*path, key)) for key, item in value.items()}
         canonical(value)  # A Choice hidden inside a literal list is an error.
         return deepcopy(value)
 
-    base = baseline(config, ())
+    base = baseline(settings, ())
     if not isinstance(base, dict):
-        raise TypeError("The top-level configuration must be a dictionary.")
+        raise TypeError("The top-level settings must be a dictionary.")
     result = [Variant(base, None)]
     seen = {canonical(base)}
     for path, knob in knobs:
@@ -97,8 +97,30 @@ def expand_sweep(config: dict) -> list[Variant]:
     return result
 
 
+def single(settings: dict, name: str) -> dict:
+    """Settings that must be one value everywhere: reject any Choice."""
+    if any(isinstance(value, Choice) for value in _values(settings)):
+        raise ValueError(f"{name} cannot contain Choice; sweeps belong in the training settings.")
+    return expand_sweep(settings)[0].settings
+
+
+def _values(value: Any):
+    yield value
+    if isinstance(value, dict):
+        for item in value.values():
+            yield from _values(item)
+
+
 def load_settings(path: str | Path, profile: str | None = None) -> dict:
     """Load a *trusted* Python settings file; this executes Python, not a sandbox."""
     path = Path(path).resolve()
     namespace = runpy.run_path(str(path))
-    return namespace["make_config"](profile or namespace["DEFAULT_PROFILE"])
+    if profile is None:
+        if "DEFAULT_PROFILE" not in namespace:
+            raise ValueError(f"{path.name} defines no DEFAULT_PROFILE; choose a profile.")
+        profile = namespace["DEFAULT_PROFILE"]
+    return namespace["make_settings"](profile)
+
+
+def default_profile(path: str | Path) -> str:
+    return runpy.run_path(str(Path(path).resolve()))["DEFAULT_PROFILE"]

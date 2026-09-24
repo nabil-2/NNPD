@@ -27,6 +27,9 @@ package do not establish it anew.
 
 ## Settings for the study's quantities
 
+The rows through **Training** are training settings in `settings_training.py`; the
+rows from **Ensemble size** on are analysis settings in `settings_analysis.py`.
+
 | Quantity | Setting | `default` value |
 |---|---|---|
 | Observation dimension | `problem.dimension` | `Choice([1,2,3,4,5,6])` |
@@ -55,7 +58,7 @@ package do not establish it anew.
 
 The standard-deviation inference bounds `[.2,4]` and associated prior parameters
 are **example choices of this implementation**. The paper's study infers means
-only. Change them in the same settings file.
+only. Change them in `settings_training.py`.
 
 ## Interpretation and implementation choices
 

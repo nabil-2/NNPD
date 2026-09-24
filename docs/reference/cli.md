@@ -3,7 +3,7 @@
 From the repository root:
 
 ```bash
-python run.py [plan|run|train|analyze|verify] [--config PATH] [--profile NAME]
+python run.py [plan|train|analyze|run|verify] [--profile NAME] [--settings-dir DIR]
 ```
 
 After installation, `nnpd` is the equivalent command. Both use the same CLI and
@@ -11,50 +11,48 @@ public execution functions. Run `python run.py --help` for the parser's help tex
 
 ## Actions
 
-| Action | Behavior |
-|---|---|
-| `plan` | Default. Resolve and validate the sweep and print JSON jobs/workload estimates; no data sampling or training. |
-| `run` | Train missing compatible models and run selected analysis. |
-| `train` | Sample/reuse training data, train/reuse models, and stop at checkpoints. |
-| `analyze` | Require matching training/model artifacts; run analysis without implicit training. |
-| `verify` | Deep-check committed artifacts in the planned output roots. |
+| Action | Reads | Behavior |
+|---|---|---|
+| `plan` | both settings files | Default. Resolve and validate the sweep and print JSON jobs with training and analysis workload estimates; computes nothing. |
+| `train` | `settings_training.py` | Sample/reuse training data, train/reuse models, and stop at checkpoints. Resets each run's analysis. |
+| `analyze` | `settings_analysis.py`, plus `output` and `runtime` from `settings_training.py` | Analyze the models of the latest successful training. Never trains. Replaces each run's metrics and plots. |
+| `run` | both settings files | `train`, then `analyze`. |
+| `verify` | `output` from `settings_training.py` | Deep-check committed artifacts in the output folder. |
 
-Every action except `verify` first checks that each configuration's analysis
-fits the limits in `settings.py`. If one does not, `plan` prints the plan and
-exits with an error, and `train`, `run` and `analyze` refuse to start before
-computing anything.
+`plan`, `run` and `analyze` check that the analysis of every model fits the limits
+in `settings_analysis.py`. If one does not, `plan` prints the plan and exits with
+an error, and `run` and `analyze` refuse to start before computing anything.
+`train` does not depend on the analysis settings and does not check them.
 
 ## Options
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--config PATH` | `settings.py` in the working directory | Trusted Python file exposing `DEFAULT_PROFILE` and `make_config(profile)`. |
-| `--profile NAME` | That file's `DEFAULT_PROFILE` | Select a preset defined by the settings file. |
+| `--profile NAME` | `DEFAULT_PROFILE` in `settings_training.py` | Select the preset of that name in both settings files. |
+| `--settings-dir DIR` | The working directory | Folder containing `settings_training.py` and `settings_analysis.py`. |
 | `-h`, `--help` | — | Show help and exit. |
 
-The experiment class is set by `application` in the settings file. Every
-successful launch copies the settings file byte for byte to `<output>/settings.py`;
-`--config outputs/<profile>/settings.py --profile <profile>` runs it again in the
-same output folder.
+The experiment class is set by `experiment` in the training settings and the
+analysis class by `analysis` in the analysis settings. Every successful launch
+copies the settings files it used byte for byte into the output folder, so
+`--settings-dir outputs/<profile> --profile <profile>` runs them again in the same
+output folder.
 
 Do not expect a flag for every hyperparameter. Ordinary knobs deliberately live
-in one settings file. GPU visibility and distributed worker counts are selected
-through the environment and `torchrun`; see [CUDA](../guide/cuda.md).
+in the two settings files. GPU visibility and distributed worker counts are
+selected through the environment and `torchrun`; see [CUDA](../guide/cuda.md).
 
 ## Python equivalents
 
 ```python
-from settings import make_config
-from nnpd import execute, load_experiment, plan
+from nnpd import execute, plan
 
-config = make_config("smoke")
-experiment = load_experiment(config["application"])
-jobs = plan(config, experiment)
+jobs = plan("smoke")  # computes nothing
 
 # Training/analysis is explicit; planning above does neither.
-paths = execute(config, experiment, stage="run", settings_file="settings.py")
+paths = execute("run", profile="smoke")
 ```
 
-Valid `execute` stages are `"run"`, `"train"`, and `"analyze"`. `plan` is a
-separate function. For checksums in Python, use
+Valid `execute` stages are `"train"`, `"analyze"`, and `"run"`. Both functions
+accept `settings_dir=` like `--settings-dir`. For checksums in Python, use
 `nnpd.core.runner.verify_store(output_root)`.

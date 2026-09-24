@@ -1,19 +1,26 @@
 # Configuration and one-factor sweeps
 
-## One settings file
+## Two settings files
 
-`settings.py` defines `SETTINGS`, `DEFAULT_PROFILE`, and `make_config(profile)`.
-The function deep-copies the main dictionary and applies explicit preset
-adjustments. Values set later by a preset override corresponding values in
-`SETTINGS`; edit the relevant part of this same file.
+`settings_training.py` decides what is trained; `settings_analysis.py` decides
+what is computed from the trained models. Each defines `SETTINGS`, `PROFILES`, and
+`make_settings(profile)`, which deep-copies `SETTINGS` and applies explicit preset
+adjustments. Values set by a preset override the corresponding values in
+`SETTINGS`. `settings_training.py` also defines `DEFAULT_PROFILE`, the profile used
+for both files when none is given.
 
-The [settings reference](../reference/settings.md) displays the complete file
+| Settings file | Class it names | Other sections |
+|---|---|---|
+| `settings_training.py` | `"experiment"`: an `Experiment` | `output`, `seed`, `problem`, `cohort`, `priors`, `data`, `model`, `training`, `runtime` |
+| `settings_analysis.py` | `"analysis"`: an `Analysis` | `inference`, `verification`, `metrics`, `plots`, `plotting` |
+
+The [settings reference](../reference/settings.md) displays both complete files
 directly, so names and default values are not maintained in a separate copy.
-Application and settings modules are trusted Python, not sandboxed configuration.
+Application and settings modules are trusted Python, not sandboxed settings.
 
 ## Baseline plus one changed knob
 
-Use `Choice` to mark alternatives:
+Sweeps are for training settings. Use `Choice` to mark alternatives:
 
 ```python
 from nnpd import Choice, expand_sweep
@@ -51,9 +58,13 @@ Options may also be complete dictionaries. Use an atomic dictionary option when
 several dependent settings must change together; do not nest a `Choice` inside
 another option or inside a literal list. That nesting is rejected.
 
+`Choice` is rejected in `settings_analysis.py`. An analysis is one setting: to
+compare, for example, two candidate counts, analyze with one, then change it and
+analyze again.
+
 ## Change the model or the inferred parameters
 
-The following are **edits in `settings.py`**, not additional command-line flags:
+The following are **edits in `settings_training.py`**, not additional command-line flags:
 
 ```python
 # Values for problem.dimension, problem.infer, and model.kind, respectively:
@@ -88,19 +99,20 @@ as the value of `cohort.priors`.
 
 | Setting | What repeats |
 |---|---|
-| `cohort.replicas` | Independent training data/models for a prior. |
-| `inference.repeats` | Independent observation ensembles at each truth. |
-| `inference.observations` | Observations sharing one truth within each ensemble. |
+| `cohort.replicas` (training) | Independent training data/models for a prior. |
+| `inference.repeats` (analysis) | Independent observation ensembles at each truth. |
+| `inference.observations` (analysis) | Observations sharing one truth within each ensemble. |
 
 These settings are not interchangeable.
 
 ## Fixed runtime and compatible analysis choices
 
-`runtime` must be fixed within one execution launch. Compare CPU/CUDA or
-`jobs`/`ddp` through separate launches. Inference targets, selected metrics, and
-plots must also be compatible: for example, bias and coverage require the `ratio`
-target. Planning checks every scientific alternative before training begins;
-backend availability is checked when the runtime is created.
+`runtime` and `output` must be fixed within one execution launch. Compare
+CPU/CUDA or `jobs`/`ddp` through separate launches. `runtime` is in the training
+settings, and `analyze` uses it too. Inference targets, selected metrics, and plots
+must be compatible: for example, bias and coverage require the `ratio` target.
+Planning checks every training alternative and the analysis settings before
+anything runs; backend availability is checked when the runtime is created.
 
 A useful workflow is: edit the settings, print the plan, inspect every workload's
 warnings/errors, and only then execute the desired stage.
@@ -108,8 +120,8 @@ warnings/errors, and only then execute the desired stage.
 ## Truth design
 
 The truth points are the true parameter values at which inference is evaluated.
-`inference.truth_design` chooses how they are placed; `p` is the number of
-inferred parameters:
+`inference.truth_design` in `settings_analysis.py` chooses how they are placed;
+`p` is the number of inferred parameters:
 
 | Value | Truths |
 |---|---|
@@ -122,10 +134,15 @@ The `paper` preset uses `size_adaptive`: the exact 25-point-per-axis grid for
 
 ## Analysis must be feasible before anything is computed
 
-The analysis cost of every configuration is estimated from its settings before
-anything is sampled or trained. `max_model_evaluations`, `max_saved_bytes` and
-`max_candidate_points` in `inference` set the limits. If any configuration of the
-sweep exceeds them, `train`, `run` and `analyze` refuse the whole launch, and
-`plan` prints the plan and then exits with an error. The error names each
-infeasible configuration and the settings to reduce. Nothing is reduced
-automatically, so no model is trained that could not also be analyzed.
+The analysis cost of every model is estimated from both settings before anything
+is computed. `max_model_evaluations`, `max_saved_bytes` and `max_candidate_points`
+in the analysis `inference` settings set the limits. If any model exceeds them:
+
+- `run` refuses the whole launch before training, so no model is trained that
+  could not also be analyzed;
+- `analyze` refuses before computing anything;
+- `plan` prints the plan and then exits with an error.
+
+The error names each infeasible configuration and the settings to reduce. Nothing
+is reduced automatically. `train` alone does not check: the analysis settings can
+still be changed afterwards.

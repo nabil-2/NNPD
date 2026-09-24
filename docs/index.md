@@ -1,11 +1,13 @@
 # NNPD
 
-## Configure an experiment. Reuse its data. Extend its analysis.
+## Train once. Analyze as often as you like.
 
-NNPD separates experiment execution from scientific choices. The reusable core
-handles planning, training stages, shared artifacts, and results. The Gaussian
-application implements the neural-prior-dependence example. All ordinary
-experiment settings live in **`settings.py`**.
+NNPD separates experiment execution from scientific choices, and training from
+analysis. The reusable core handles planning, training, shared artifacts, and
+results. The Gaussian application implements the neural-prior-dependence example.
+What is trained is set in **`settings_training.py`**; what is computed from the
+trained models is set in **`settings_analysis.py`**, and can be changed and
+recomputed at any time without retraining.
 
 Start with [your first run](guide/quickstart.md), then learn
 [how configurations and sweeps work](guide/configuration.md). To add a simulator,
@@ -22,11 +24,12 @@ python run.py run --profile smoke
 The `smoke` profile checks the complete workflow with small datasets. It is not a
 scientific convergence study. The default command only prints a plan.
 
-### Four small concepts
+### Five small concepts
 
 | Concept | What it owns |
 |---|---|
-| **Experiment** | The problem, prior, training data, model, and training procedure. |
+| **Experiment** | What is trained: the problem, prior, training data, model, and training procedure. |
+| **Analysis** | What is computed from the trained models: products, metrics, and plots. |
 | **Product** | A reusable dataset with declared dependencies and a persistent cache. |
 | **Metric** | A measurement from shared products, the model, or both. |
 | **Plot** | Ordinary plotting code with access to the full experiment context. |

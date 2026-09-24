@@ -13,7 +13,7 @@ from typing import Any, Callable, Mapping
 import numpy as np
 import torch
 
-from .config import digest
+from .settings import digest
 from .storage import Artifact, Store, Writer, file_hash
 from .runtime import Runtime
 
@@ -37,12 +37,16 @@ def implementation_hash(functions: tuple[Callable, ...], version: str) -> dict:
                             **{name: package_version(name) for name in ("numpy", "scipy", "torch")}}}
 
 
+def _all_settings(context: "Context") -> dict:
+    return {"training": context.training_settings, "analysis": context.analysis_settings}
+
+
 @dataclass(frozen=True)
 class Product:
     """A reusable dataset; dependencies are resolved and cached before build()."""
     build: Callable[["Context", Mapping[str, Artifact], Writer], dict]
     needs: tuple[str, ...] = ()
-    settings: Callable[["Context"], dict] = lambda context: context.config
+    settings: Callable[["Context"], dict] = _all_settings
     sources: tuple[Callable, ...] = ()
     version: str = "1"
 
@@ -61,25 +65,29 @@ class Plot:
 
 
 class Experiment(ABC):
-    """Implement the scientific decisions; the runner owns execution and files."""
+    """What is trained: problem, prior, training data, model and training procedure.
+
+    Selected by "experiment" in the training settings. The runner owns execution and files.
+    """
     name = "experiment"
     version = "1"
 
-    def members(self, config: dict) -> list[dict]:
+    def members(self, settings: dict) -> list[dict]:
         """A fixed comparison cohort within each sweep configuration."""
         return [{}]
 
-    def validate(self, config: dict) -> None:
+    def validate(self, settings: dict) -> None:
         """Fail before any sampling or training, including for invalid alternatives."""
 
-    def estimate(self, config: dict, member: dict) -> dict:
+    def estimate(self, settings: dict, member: dict) -> dict:
+        """Training workload shown by the plan."""
         return {}
 
     @abstractmethod
-    def make_problem(self, config: dict) -> Any: ...
+    def make_problem(self, settings: dict) -> Any: ...
 
     @abstractmethod
-    def make_prior(self, config: dict, member: dict, problem: Any) -> Any: ...
+    def make_prior(self, settings: dict, member: dict, problem: Any) -> Any: ...
 
     @abstractmethod
     def sample_training(self, context: "Context", writer: Writer) -> dict: ...
@@ -93,8 +101,8 @@ class Experiment(ABC):
         ...
 
     def signature(self, stage: str, context: "Context") -> dict:
-        """Override for cross-run sharing; conservative default uses all settings."""
-        return {"config": context.config, "member": context.member}
+        """Override for cross-run sharing; conservative default uses all training settings."""
+        return {"settings": context.training_settings, "member": context.member}
 
     def sources(self, stage: str) -> tuple[Callable, ...]:
         """Include modules implementing transitive scientific dependencies."""
@@ -102,6 +110,22 @@ class Experiment(ABC):
 
     def model_seed(self, context: "Context") -> int:
         return context.seed("model")
+
+
+class Analysis:
+    """What is computed from trained models: shared datasets, metrics and plots. Never trains.
+
+    Selected by "analysis" in the analysis settings. "training" and "model" are the
+    reserved datasets every product, metric and plot may depend on.
+    """
+    name = "analysis"
+
+    def validate(self, settings: dict) -> None:
+        """Fail before anything is computed."""
+
+    def estimate(self, settings: dict, problem: Any, prior: Any) -> dict:
+        """Workload of analyzing one trained model; limit violations go in "errors"."""
+        return {}
 
     def products(self) -> dict[str, Product]:
         return {}
@@ -113,23 +137,34 @@ class Experiment(ABC):
         return {}
 
 
-def load_experiment(specification: str) -> Experiment:
-    """Instantiate a trusted module:class extension configured in settings.py."""
+def _load(specification: str, base: type, key: str):
     module, name = specification.split(":", 1)
-    experiment = getattr(import_module(module), name)()
-    if not isinstance(experiment, Experiment):
-        raise TypeError("The configured application must subclass Experiment.")
-    return experiment
+    instance = getattr(import_module(module), name)()
+    if not isinstance(instance, base):
+        raise TypeError(f'The "{key}" setting must name a subclass of {base.__name__}.')
+    return instance
+
+
+def load_experiment(specification: str) -> Experiment:
+    """Instantiate the trusted module:class named by "experiment" in the training settings."""
+    return _load(specification, Experiment, "experiment")
+
+
+def load_analysis(specification: str) -> Analysis:
+    """Instantiate the trusted module:class named by "analysis" in the analysis settings."""
+    return _load(specification, Analysis, "analysis")
 
 
 @dataclass
 class Context:
     experiment: Experiment
-    config: dict
+    training_settings: dict
     member: dict
     store: Store
     runtime: Runtime
     run_dir: Path
+    analysis: Analysis | None = None
+    analysis_settings: dict | None = None
     problem: Any = field(init=False)
     prior: Any = field(init=False)
     artifacts: dict[str, Artifact] = field(default_factory=dict)
@@ -137,11 +172,11 @@ class Context:
     _active: list[str] = field(default_factory=list, repr=False)
 
     def __post_init__(self) -> None:
-        self.problem = self.experiment.make_problem(self.config)
-        self.prior = self.experiment.make_prior(self.config, self.member, self.problem)
+        self.problem = self.experiment.make_problem(self.training_settings)
+        self.prior = self.experiment.make_prior(self.training_settings, self.member, self.problem)
 
     def seed(self, namespace: str, *, base: int | None = None, member: bool = True) -> int:
-        base = int(self.config.get("seed", 0)) if base is None else int(base)
+        base = int(self.training_settings.get("seed", 0)) if base is None else int(base)
         payload = {"seed": base, "namespace": namespace,
                    "member": self.member if member else {}}
         return int(digest(payload)[:8], 16)
@@ -163,9 +198,11 @@ class Context:
         """Get or build a named dataset. Cycles and unknown dependencies fail clearly."""
         if name in self.artifacts:
             return self.artifacts[name]
+        if self.analysis is None:
+            raise RuntimeError(f"Dataset {name!r} needs analysis settings; this run has not been analyzed.")
         if name in self._active:
             raise ValueError("Dataset dependency cycle: " + " -> ".join([*self._active, name]))
-        registry = self.experiment.products()
+        registry = self.analysis.products()
         if name not in registry:
             raise KeyError(f"Unknown or unavailable dataset {name!r}.")
         self._active.append(name)

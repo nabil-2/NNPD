@@ -15,9 +15,9 @@ from nnpd.nre.training import classification, predict_logits
 
 
 def make_prior(tiny, kind, rate=0.1):
-    cfg = deepcopy(tiny["problem"])
-    cfg["parameters"]["mean"]["exponential_rate"] = rate
-    return IndependentPrior(GaussianProblem(cfg).parameters, {"family": kind})
+    settings = deepcopy(tiny.training["problem"])
+    settings["parameters"]["mean"]["exponential_rate"] = rate
+    return IndependentPrior(GaussianProblem(settings).parameters, {"family": kind})
 
 
 @pytest.mark.parametrize("kind,rate", [("uniform", 0), ("normal", 0), ("exponential", 0.1),
@@ -53,9 +53,9 @@ def test_grid_probability_mass_and_native_support(tiny):
 
 
 def test_mixed_support_and_selected_parameter_order(tiny):
-    cfg = deepcopy(tiny["problem"])
-    cfg.update(dimension=2, infer=["std:1", "mean:0"], fixed={"mean:1": 8})
-    problem = GaussianProblem(cfg)
+    settings = deepcopy(tiny.training["problem"])
+    settings.update(dimension=2, infer=["std:1", "mean:0"], fixed={"mean:1": 8})
+    problem = GaussianProblem(settings)
     mean, std = problem.unpack(np.array([[3, 7], [1, 4]]))
     np.testing.assert_allclose(mean, [[7, 8], [4, 8]])
     np.testing.assert_allclose(std, [[2, 3], [2, 1]])
@@ -67,16 +67,16 @@ def test_mixed_support_and_selected_parameter_order(tiny):
 
 @pytest.mark.parametrize("infer", [[], ["mean:0", "mean:0"], ["foo:0"], ["std:1"], ["mean:*", "mean:0"]])
 def test_invalid_dependencies(tiny, infer):
-    cfg = deepcopy(tiny["problem"])
-    cfg["infer"] = infer
+    settings = deepcopy(tiny.training["problem"])
+    settings["infer"] = infer
     with pytest.raises(ValueError):
-        GaussianProblem(cfg)
+        GaussianProblem(settings)
 
 
 def test_gaussian_likelihood_sampling_and_positive_std(tiny):
-    cfg = deepcopy(tiny["problem"])
-    cfg.update(dimension=2, infer=["mean:*", "std:1"])
-    problem = GaussianProblem(cfg)
+    settings = deepcopy(tiny.training["problem"])
+    settings.update(dimension=2, infer=["mean:*", "std:1"])
+    problem = GaussianProblem(settings)
     theta = np.repeat([[3, 6, 1.5]], 50_000, axis=0)
     x = problem.sample(theta, np.random.default_rng(1))
     np.testing.assert_allclose(x.mean(axis=0), [3, 6], atol=0.04)
@@ -88,7 +88,7 @@ def test_gaussian_likelihood_sampling_and_positive_std(tiny):
 
 
 def test_balanced_joint_product_and_exact_sizes(tiny):
-    problem = GaussianProblem(tiny["problem"])
+    problem = GaussianProblem(tiny.training["problem"])
     prior = make_prior(tiny, "uniform")
     x, theta, y = balanced_pairs(problem, prior, 40_000, np.random.default_rng(17))
     assert x.shape == theta.shape == (40_000, 1)
@@ -159,7 +159,7 @@ def test_ensemble_log_ratio_and_chunk_equivalence():
 
 @pytest.mark.parametrize("kind", ["mlp", "residual"])
 def test_models_return_scalar_logits_and_accept_mixed_inputs(tiny, kind):
-    definition = {**tiny["model"], "kind": kind}
+    definition = {**tiny.training["model"], "kind": kind}
     model = build_network(5, definition)
     out = model(torch.randn(7, 5))
     assert out.shape == (7,)

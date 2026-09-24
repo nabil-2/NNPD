@@ -53,18 +53,18 @@ def fit_binary(context, model) -> dict:
     An empty shard runs a zero-weight dummy forward to participate in collectives.
     The configured batch size is GLOBAL, not per GPU.
     """
-    cfg, runtime = context.config["training"], context.runtime
+    settings, runtime = context.training_settings["training"], context.runtime
     data = context.artifacts["training"]
     x, theta, labels = (data.array("train_" + name) for name in ("x", "theta", "y"))
-    global_batch = cfg["batch_size"]
+    global_batch = settings["batch_size"]
     model.to(runtime.device)
     train_model = DistributedDataParallel(model, device_ids=[runtime.device.index]
                                         if runtime.device.type == "cuda" else None) if runtime.ddp else model
-    optimizer_class = {"adam": torch.optim.Adam, "adamw": torch.optim.AdamW}[cfg["optimizer"]]
-    optimizer = optimizer_class(train_model.parameters(), lr=cfg["learning_rate"],
-                                betas=tuple(cfg["betas"]), eps=cfg["epsilon"],
-                                weight_decay=cfg["weight_decay"])
-    amp = cfg["precision"]
+    optimizer_class = {"adam": torch.optim.Adam, "adamw": torch.optim.AdamW}[settings["optimizer"]]
+    optimizer = optimizer_class(train_model.parameters(), lr=settings["learning_rate"],
+                                betas=tuple(settings["betas"]), eps=settings["epsilon"],
+                                weight_decay=settings["weight_decay"])
+    amp = settings["precision"]
     dtype = {"float16": torch.float16, "bfloat16": torch.bfloat16}.get(amp)
     if amp == "float16" and runtime.device.type != "cuda":
         raise ValueError("float16 training requires CUDA; use off or bfloat16 on CPU.")
@@ -74,7 +74,7 @@ def fit_binary(context, model) -> dict:
     history = {"train_loss": [], "validation": [], "rows_per_epoch": len(x),
                "global_batch_size": global_batch, "world_size": world, "selected_epoch": None}
     best_loss, best_state = float("inf"), None
-    for epoch in range(cfg["epochs"]):
+    for epoch in range(settings["epochs"]):
         train_model.train()
         order = context.rng(f"epoch-{epoch}").permutation(len(x))
         loss_total = torch.zeros((), device=runtime.device, dtype=torch.float64)
@@ -96,9 +96,9 @@ def fit_binary(context, model) -> dict:
             if not torch.isfinite(loss):
                 raise FloatingPointError("Nonfinite training loss.")
             scaler.scale(loss).backward()
-            if cfg["gradient_clip"] is not None:
+            if settings["gradient_clip"] is not None:
                 scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(train_model.parameters(), cfg["gradient_clip"],
+                torch.nn.utils.clip_grad_norm_(train_model.parameters(), settings["gradient_clip"],
                                                error_if_nonfinite=True)
             scaler.step(optimizer)
             scaler.update()
@@ -108,21 +108,21 @@ def fit_binary(context, model) -> dict:
         validation = None
         if runtime.leader:
             val_logits = predict_logits(model, data.array("validation_x"), data.array("validation_theta"),
-                                        cfg["evaluation_batch_size"], runtime.device)
+                                        settings["evaluation_batch_size"], runtime.device)
             validation = classification(data.array("validation_y"), val_logits)
         validation = runtime.broadcast(validation)
         history["train_loss"].append(float(loss_total.item() / len(x)))
         history["validation"].append(validation)
         if validation["bce"] < best_loss:
             best_loss = validation["bce"]
-            if cfg["checkpoint"] == "best":
+            if settings["checkpoint"] == "best":
                 best_state = deepcopy(model.state_dict())
                 history["selected_epoch"] = epoch + 1
-        if cfg["verbose"] and runtime.leader:
+        if settings["verbose"] and runtime.leader:
             print(f"  epoch {epoch + 1}: train={history['train_loss'][-1]:.5f}, val={validation['bce']:.5f}",
                   flush=True)
     if best_state is not None:
         model.load_state_dict(best_state)
-    if cfg["checkpoint"] == "last":
-        history["selected_epoch"] = cfg["epochs"]
+    if settings["checkpoint"] == "last":
+        history["selected_epoch"] = settings["epochs"]
     return history

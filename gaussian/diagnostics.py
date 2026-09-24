@@ -5,69 +5,74 @@ import numpy as np
 from scipy.special import logsumexp
 from scipy.stats import wasserstein_distance
 
-from nnpd.core.config import select
 from nnpd.nre.training import predict_logits
 from nnpd.nre.distributions import grid_axis
 from .evaluation import unit_sobol
 
 
 def verification_settings(context):
-    return select(context.config, "problem", "verification")
+    return {"problem": context.training_settings["problem"],
+            "verification": context.analysis_settings["verification"]}
+
+
+def normalization_settings(context):
+    return {**verification_settings(context), "member": context.member,
+            "prior": context.training_settings["priors"][context.member["prior"]]}
 
 
 def model_evaluation_settings(context):
-    return {"evaluation_batch_size": context.config["training"]["evaluation_batch_size"],
+    return {"evaluation_batch_size": context.training_settings["training"]["evaluation_batch_size"],
             "device": context.runtime.device.type}
 
 
 def test_predictions(context, dependencies, writer):
     data = dependencies["training"]
     logits = predict_logits(context.model, data.array("test_x"), data.array("test_theta"),
-                            context.config["training"]["evaluation_batch_size"], context.runtime.device)
+                            context.training_settings["training"]["evaluation_batch_size"], context.runtime.device)
     writer.array("logits", logits)
     writer.array("labels", data.array("test_y"))
     return {"split": "held-out test", "count": len(logits)}
 
 
 def verification_observations(context, dependencies, writer):
-    cfg, problem = context.config["verification"], context.problem
-    rng = context.rng("verification-observations", base=cfg["seed"], member=False)
+    settings, problem = context.analysis_settings["verification"], context.problem
+    rng = context.rng("verification-observations", base=settings["seed"], member=False)
     low, high = np.array([(p.low, p.high) for p in problem.parameters]).T
-    seed = context.seed("verification-pairs", base=cfg["seed"], member=False)
-    if cfg["pair_design"] == "grid":
-        pairs = np.empty((cfg["pairs"], 2, len(low)))
+    seed = context.seed("verification-pairs", base=settings["seed"], member=False)
+    if settings["pair_design"] == "grid":
+        pairs = np.empty((settings["pairs"], 2, len(low)))
         for j, parameter in enumerate(problem.parameters):
             axis = grid_axis(parameter.low, parameter.high, parameter.options["grid_step"])
-            pairs[:, :, j] = axis[rng.integers(0, len(axis), size=(cfg["pairs"], 2))]
+            pairs[:, :, j] = axis[rng.integers(0, len(axis), size=(settings["pairs"], 2))]
     else:
-        unit = (unit_sobol(cfg["pairs"] * 2, len(low), seed).reshape(cfg["pairs"], 2, len(low))
-                if cfg["pair_design"] == "sobol" else rng.random((cfg["pairs"], 2, len(low))))
+        unit = (unit_sobol(settings["pairs"] * 2, len(low), seed).reshape(settings["pairs"], 2, len(low))
+                if settings["pair_design"] == "sobol" else rng.random((settings["pairs"], 2, len(low))))
         pairs = low + unit * (high - low)
     writer.array("pairs", pairs)
     source, target = [], []
     for pair in pairs:
-        a = problem.sample(np.repeat(pair[0][None], cfg["samples_per_endpoint"], axis=0), rng)
-        b = problem.sample(np.repeat(pair[1][None], cfg["samples_per_endpoint"], axis=0), rng)
+        a = problem.sample(np.repeat(pair[0][None], settings["samples_per_endpoint"], axis=0), rng)
+        b = problem.sample(np.repeat(pair[1][None], settings["samples_per_endpoint"], axis=0), rng)
         source.append(np.concatenate((a, b)))
         target.append(problem.log_likelihood(source[-1], pair[1]) -
                       problem.log_likelihood(source[-1], pair[0]))
     writer.array("probe_x", np.array(source))
     writer.array("exact_probe_log_ratio", np.array(target))
     for name, column in (("source", 0), ("target", 1)):
-        theta = np.repeat(pairs[:, column, None, :], cfg[f"{name}_samples"], axis=1)
+        theta = np.repeat(pairs[:, column, None, :], settings[f"{name}_samples"], axis=1)
         writer.array(f"{name}_x", problem.sample(theta, rng))
-    directions = rng.normal(size=(cfg["directions"], problem.observation_dim))
+    directions = rng.normal(size=(settings["directions"], problem.observation_dim))
     directions /= np.linalg.norm(directions, axis=1, keepdims=True)
     writer.array("directions", directions)
-    return {"ratio_orientation": "p(x|theta1) / p(x|theta0)", "pairs": cfg["pairs"],
+    return {"ratio_orientation": "p(x|theta1) / p(x|theta0)", "pairs": settings["pairs"],
             "shared_across_priors_and_training_replicas": True,
-            "theta_design": cfg["pair_design"], "grid_step_source": "problem.parameters"}
+            "theta_design": settings["pair_design"], "grid_step_source": "problem.parameters"}
 
 
 def verification_predictions(context, dependencies, writer):
     data = dependencies["verification_observations"]
     pairs = data.array("pairs")
-    batch, device = context.config["training"]["evaluation_batch_size"], context.runtime.device
+    batch, device = context.training_settings["training"]["evaluation_batch_size"], context.runtime.device
     for label in ("probe", "source"):
         observations = data.array(f"{label}_x")
         predicted, exact = [], []
@@ -107,21 +112,21 @@ def reweighting_distances(context, dependencies, writer):
 
 
 def normalization_observations(context, dependencies, writer):
-    cfg, problem = context.config["verification"], context.problem
-    rng = context.rng("normalization", base=cfg["seed"])
-    theta = context.prior.sample(cfg["marginal_samples"], rng)
+    settings, problem = context.analysis_settings["verification"], context.problem
+    rng = context.rng("normalization", base=settings["seed"])
+    theta = context.prior.sample(settings["marginal_samples"], rng)
     writer.array("x", problem.sample(theta, rng))
-    if cfg["normalization_design"] == "prior":
-        points = context.prior.sample(cfg["normalization_thetas"], rng)
+    if settings["normalization_design"] == "prior":
+        points = context.prior.sample(settings["normalization_thetas"], rng)
     else:
         columns = []
         for parameter in problem.parameters:
-            if cfg["normalization_on_grid"]:
+            if settings["normalization_on_grid"]:
                 axis = grid_axis(parameter.low, parameter.high, parameter.options["grid_step"])
-                indices = np.rint(np.linspace(0, len(axis) - 1, cfg["normalization_thetas"])).astype(int)
+                indices = np.rint(np.linspace(0, len(axis) - 1, settings["normalization_thetas"])).astype(int)
                 columns.append(axis[indices])
             else:
-                columns.append(np.linspace(parameter.low, parameter.high, cfg["normalization_thetas"]))
+                columns.append(np.linspace(parameter.low, parameter.high, settings["normalization_thetas"]))
         points = np.column_stack(columns)
     writer.array("theta", points)
     return {"distribution": "prior-specific evidence p_i(x)", "expected_ratio_mean": 1.0}
@@ -131,27 +136,27 @@ def normalization_predictions(context, dependencies, writer):
     data = dependencies["normalization_observations"]
     x, theta = data.array("x"), data.array("theta")
     scores = np.array([predict_logits(context.model, x, point,
-                                     context.config["training"]["evaluation_batch_size"], context.runtime.device)
+                                     context.training_settings["training"]["evaluation_batch_size"], context.runtime.device)
                        for point in theta])
     writer.array("log_ratio", scores)
     return {"expected_ratio_mean": 1.0, "samples": len(x), "theta_count": len(theta)}
 
 
 def showcase_observations(context, dependencies, writer):
-    cfg = context.config["verification"]["showcase"]
+    settings = context.analysis_settings["verification"]["showcase"]
     low, high = np.array([(p.low, p.high) for p in context.problem.parameters]).T
-    points = low + np.array([cfg["source_fraction"], cfg["target_fraction"]])[:, None] * (high - low)
+    points = low + np.array([settings["source_fraction"], settings["target_fraction"]])[:, None] * (high - low)
     writer.array("theta", points)
-    rng = context.rng("showcase", base=context.config["verification"]["seed"], member=False)
+    rng = context.rng("showcase", base=context.analysis_settings["verification"]["seed"], member=False)
     for name, point in zip(("source", "target"), points):
-        writer.array(name, context.problem.sample(np.repeat(point[None], cfg["samples"], axis=0), rng))
+        writer.array(name, context.problem.sample(np.repeat(point[None], settings["samples"], axis=0), rng))
     return {"orientation": "source -> target", "parameters": context.problem.names}
 
 
 def showcase_predictions(context, dependencies, writer):
     data = dependencies["showcase_observations"]
     x, theta = data.array("source"), data.array("theta")
-    batch, device = context.config["training"]["evaluation_batch_size"], context.runtime.device
+    batch, device = context.training_settings["training"]["evaluation_batch_size"], context.runtime.device
     writer.array("log_ratio", predict_logits(context.model, x, theta[1], batch, device) -
                  predict_logits(context.model, x, theta[0], batch, device))
     return {"source_samples": len(x)}

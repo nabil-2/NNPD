@@ -48,13 +48,12 @@ high-dimensional configurations.
 The test suite uses tiny configurations. To exercise realistic sizes, run the
 `default` preset at dimension one:
 
-```python
-from settings import make_config
-from nnpd import execute, load_experiment
+```text
+"dimension": 1,   # in settings_training.py, instead of Choice([1, 2, 3, 4, 5, 6])
+```
 
-config = make_config("default")
-config["problem"]["dimension"] = 1
-execute(config, load_experiment(config["application"]))
+```bash
+python run.py run --profile default
 ```
 
 This trains and analyzes four priors, 70,000 training
@@ -66,7 +65,7 @@ inference: up to about 2.5·10⁸ model evaluations per prior, reported by the p
 `inference_model_evaluations`. Wall time depends on the hardware and on
 `runtime.cpu_threads`.
 
-Results go to `outputs/default`: each run folder holds its resolved configuration,
+Results go to `outputs/default`: each run folder holds its resolved settings,
 metrics and plots. `python run.py verify --profile default` checks the saved
 artifacts byte by byte.
 

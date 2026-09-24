@@ -59,7 +59,7 @@ def make_residual(inputs, definition):
                        definition["activation"], definition["dropout"])
 
 
-# Add a factory here to make another model selectable in settings.py.
+# Add a factory here to make another model selectable in settings_training.py.
 NETWORKS = {"mlp": make_mlp, "residual": make_residual}
 
 

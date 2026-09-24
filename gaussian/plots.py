@@ -18,10 +18,10 @@ def training(context, dependencies):
 
 def prior(context, dependencies):
     figures = {}
-    samples = context.prior.sample(context.config["plotting"]["prior_points"], context.rng("prior-plot"))
+    samples = context.prior.sample(context.analysis_settings["plotting"]["prior_points"], context.rng("prior-plot"))
     for column, parameter in enumerate(context.problem.parameters):
         fig, ax = plt.subplots(figsize=(6, 4))
-        ax.hist(samples[:, column], bins=context.config["plotting"]["bins"], density=True, alpha=0.6)
+        ax.hist(samples[:, column], bins=context.analysis_settings["plotting"]["bins"], density=True, alpha=0.6)
         ax.set(xlabel=parameter.name, ylabel="Empirical density", title=f"Training prior: {context.member['prior']}")
         figures[parameter.name.replace(":", "-")] = fig
     return figures
@@ -32,7 +32,7 @@ def inference(context, dependencies):
     truths, modes = observations.array("truth"), data.array("ratio_mode")
     lower, upper = data.array("ratio_lower"), data.array("ratio_upper")
     figures = {}
-    chosen = np.linspace(0, len(truths) - 1, min(len(truths), context.config["plotting"]["max_inference_cases"]), dtype=int)
+    chosen = np.linspace(0, len(truths) - 1, min(len(truths), context.analysis_settings["plotting"]["max_inference_cases"]), dtype=int)
     for axis, name in enumerate(context.problem.names):
         order = chosen[np.argsort(truths[chosen, axis], kind="stable")]
         fig, ax = plt.subplots(figsize=(6, 4.5))
@@ -48,12 +48,12 @@ def inference(context, dependencies):
         ax.legend(fontsize="small")
         figures[f"estimates-{name.replace(':', '-')}"] = fig
     theta, measure = candidates.array("theta"), candidates.array("log_measure")
-    for saved, case in enumerate(data.array("retained_cases")[:context.config["inference"]["diagnostic_cases"]]):
+    for saved, case in enumerate(data.array("retained_cases")[:context.analysis_settings["inference"]["diagnostic_cases"]]):
         for axis, name in enumerate(context.problem.names):
             fig, ax = plt.subplots(figsize=(6, 4))
             for target in data.metadata["targets"]:
                 mass = normalized_mass(data.array(f"{target}_log_score")[saved], measure)
-                ax.hist(theta[:, axis], bins=context.config["plotting"]["bins"], weights=mass,
+                ax.hist(theta[:, axis], bins=context.analysis_settings["plotting"]["bins"], weights=mass,
                         histtype="step", label=target)
             ax.axvline(truths[case, axis], linestyle="--", label="True")
             ax.set(xlabel=name, ylabel="Marginal probability mass per bin",
@@ -66,7 +66,7 @@ def inference(context, dependencies):
                 fig, ax = plt.subplots(figsize=(5.5, 4.5))
                 mass = normalized_mass(data.array("ratio_log_score")[saved], measure)
                 image = ax.hist2d(theta[:, column], theta[:, row], weights=mass,
-                                  bins=context.config["plotting"]["bins"])
+                                  bins=context.analysis_settings["plotting"]["bins"])
                 fig.colorbar(image[3], ax=ax, label="Marginal probability mass per bin")
                 ax.scatter([truths[case, column]], [truths[case, row]], marker="*", s=90, label="True")
                 ax.set(xlabel=context.problem.names[column], ylabel=context.problem.names[row],
@@ -103,7 +103,7 @@ def reweighting(context, dependencies):
     for axis in range(source.shape[1]):
         fig, ax = plt.subplots(figsize=(6, 4))
         edges = np.histogram_bin_edges(np.concatenate((source[:, axis], target[:, axis])),
-                                       bins=context.config["plotting"]["bins"])
+                                       bins=context.analysis_settings["plotting"]["bins"])
         ax.hist(source[:, axis], bins=edges, density=True, histtype="step", label="Source")
         ax.hist(target[:, axis], bins=edges, density=True, histtype="step", label="Target")
         ax.hist(source[:, axis], weights=weights, bins=edges, density=True, histtype="step", label="Reweighted")
@@ -122,7 +122,7 @@ def showcase(context, dependencies):
     for axis in range(source.shape[1]):
         fig, ax = plt.subplots(figsize=(6, 4))
         edges = np.histogram_bin_edges(np.concatenate((source[:, axis], target[:, axis])),
-                                       bins=context.config["verification"]["showcase"]["bins"])
+                                       bins=context.analysis_settings["verification"]["showcase"]["bins"])
         ax.hist(source[:, axis], bins=edges, density=True, histtype="step", label="Source")
         ax.hist(target[:, axis], bins=edges, density=True, histtype="step", label="Target")
         ax.hist(source[:, axis], weights=weights, bins=edges, density=True, histtype="step", label="Reweighted")

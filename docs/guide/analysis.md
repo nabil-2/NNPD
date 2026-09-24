@@ -1,8 +1,10 @@
 # Products, metrics, and plots
 
-The Gaussian application registers analysis in `gaussian/hooks.py`. The
-registries themselves do not train models. A selected hook declares named
-products; the runner resolves and caches those dependencies first.
+The Gaussian application registers its analysis in `gaussian/analysis.py`, the
+`GaussianAnalysis` class named by `"analysis"` in `settings_analysis.py`. Analysis
+never trains models. A selected hook declares named products; the runner resolves
+and caches those dependencies first. Which metrics and plots are computed, and
+with which inference and verification settings, is set in `settings_analysis.py`.
 
 ## Shared inference
 
@@ -55,34 +57,36 @@ These are examples, not a fixed publication style.
 
 ## Add analysis after training
 
-`gaussian/extensions.py` registers three more hooks: `median_absolute_bias` shares
-inference data, `parameter_count` uses the model directly, and
-`observation_histogram` accesses the observation ensemble, model class, and prior
-measure. After `python run.py run --profile smoke`, add them to the trained models:
+`gaussian/extensions.py` defines `ExtendedAnalysis` with three more hooks:
+`median_absolute_bias` shares inference data, `parameter_count` uses the model
+directly, and `observation_histogram` accesses the observation ensemble, model
+class, and prior measure. To add them to already trained models, change
+`settings_analysis.py`:
 
-```python
-from settings import make_config
-from nnpd import execute, load_experiment
-
-config = make_config("smoke")
-config["application"] = "gaussian.extensions:ExtendedGaussian"
-config["metrics"] += ["median_absolute_bias", "parameter_count"]
-config["plots"] += ["observation_histogram"]
-execute(config, load_experiment(config["application"]), stage="analyze")
+```text
+"analysis": "gaussian.extensions:ExtendedAnalysis",
+"metrics": [..., "median_absolute_bias", "parameter_count"],
+"plots": [..., "observation_histogram"],
 ```
 
-The `analyze` stage never trains. Because the configuration keeps the profile's
-output root, it reuses the saved models and shared products. The same works for
-any profile after `python run.py train --profile <name>`: replace `"smoke"`.
-`notebooks/03_extensions.ipynb` runs these steps for its `PROFILE`.
+and analyze again:
+
+```bash
+python run.py analyze --profile smoke
+```
+
+`analyze` never trains. It reuses the saved models and every shared product whose
+settings did not change, and replaces each run's metrics and plots. The same works
+for any trained profile. `notebooks/03_extensions.ipynb` analyzes again and also
+computes these metrics directly on a saved run, without changing any file.
 
 ## Complete registration and extension examples
 
 These files are included directly from the application sources:
 
-```{literalinclude} ../../gaussian/hooks.py
+```{literalinclude} ../../gaussian/analysis.py
 :language: python
-:caption: gaussian/hooks.py
+:caption: gaussian/analysis.py
 ```
 
 ```{literalinclude} ../../gaussian/extensions.py

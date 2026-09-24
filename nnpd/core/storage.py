@@ -15,7 +15,7 @@ from filelock import FileLock
 import numpy as np
 import torch
 
-from .config import canonical
+from .settings import canonical
 
 
 def safe_name(name: str) -> str:

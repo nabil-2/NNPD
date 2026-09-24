@@ -8,7 +8,7 @@ tested.
 
 ## Choose a device
 
-Edit `runtime.device` in `settings.py`:
+Edit `runtime.device` in `settings_training.py`; `analyze` uses the same runtime:
 
 | Value | Behavior |
 |---|---|
@@ -28,21 +28,22 @@ from selecting a configuration string.
 
 ## Independent jobs on two GPUs
 
-Set `runtime.parallel="jobs"` and `runtime.device="cuda"` (or `"auto"`) in the
-settings file, then launch from a shell:
+Set `runtime.parallel="jobs"` and `runtime.device="cuda"` (or `"auto"`) in
+`settings_training.py`, then launch from a shell:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node=2 run.py run --profile smoke
 ```
 
-Workers handle disjoint complete jobs, including their analysis. Each model fits
+Workers handle disjoint complete jobs, including their analysis. `train` and
+`analyze` can be launched the same way. Each model fits
 on one GPU. This is not tensor/model parallelism and does not combine GPU memory
 for one network. Common compatible products can be shared through the output
 store.
 
 ## Collective DDP training
 
-Set `runtime.parallel="ddp"` in the settings file, then launch:
+Set `runtime.parallel="ddp"` in `settings_training.py`, then launch:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node=2 run.py run --profile smoke

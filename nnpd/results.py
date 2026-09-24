@@ -6,18 +6,24 @@ import json
 from pathlib import Path
 
 
+def _read(path):
+    return json.loads(path.read_text()) if path.exists() else {}
+
+
 def runs(root, *, complete_only=True):
+    """Runs in an output folder; by default only those with a complete analysis.
+
+    Each record is run.json (training settings, member, backend) plus "status" (training),
+    "analysis" (analysis settings and state), "metrics" and "path".
+    """
     records = []
     for path in sorted((Path(root) / "runs").glob("*/*/run.json")):
-        status_path = path.with_name("status.json")
-        status = json.loads(status_path.read_text()) if status_path.exists() else {}
-        if complete_only and status.get("state") != "complete":
+        analysis = _read(path.with_name("analysis.json"))
+        if complete_only and analysis.get("state") != "complete":
             continue
         record = json.loads(path.read_text())
-        metrics_path = path.with_name("metrics.json")
-        record["metrics"] = json.loads(metrics_path.read_text()) if metrics_path.exists() else {}
-        record["path"] = str(path.parent)
-        record["status"] = status
+        record.update(status=_read(path.with_name("status.json")), analysis=analysis,
+                      metrics=_read(path.with_name("metrics.json")), path=str(path.parent))
         records.append(record)
     return records
 

@@ -6,13 +6,15 @@ where you installed NNPD, `.venv` after `uv sync`.
 
 | Notebook | Purpose |
 |---|---|
-| `01_run.ipynb` | Plan and run the selected profile. |
+| `01_run.ipynb` | Plan, train and analyze the selected profile. |
 | `02_inspect.ipynb` | Read completed results, reload models/products, call hooks, and export CSV. |
-| `03_extensions.ipynb` | Add metrics and a plot to already trained models, without training. |
+| `03_extensions.ipynb` | Analyze the trained models again with `settings_analysis.py`, and try new metrics on a saved run. Never trains. |
 
+Like the command line, the notebooks read `settings_training.py` and
+`settings_analysis.py`; to change what is trained or analyzed, edit those files.
 Each notebook starts with `PROFILE = "smoke"`. Set it to `"default"` or `"paper"`
-in all three to work with that profile instead; `02` and `03` only need its
-models to have been trained, by `01` or by `python run.py train --profile <name>`.
+in all three to work with that profile instead; `03` only needs its models to
+have been trained, by `01` or by `python run.py train --profile <name>`.
 
 They are included in the repository under `notebooks/`. The website offers the
 same files as downloads, without executing them during documentation builds:
@@ -30,23 +32,22 @@ separately; NNPD does not require one for ordinary Python execution.
 Run this from the repository root in a normal Python file:
 
 ```python
-from settings import make_config
-from nnpd import execute, load_experiment, plan
+from nnpd import execute, plan
 
 
 def main():
-    config = make_config("smoke")
-    experiment = load_experiment(config["application"])
-    jobs = plan(config, experiment)
+    jobs = plan("smoke")
     print(f"Planned models: {len(jobs)}")
-    return execute(config, experiment, settings_file="settings.py")
+    return execute("run", profile="smoke")  # or "train" / "analyze"
 
 
 if __name__ == "__main__":
     main()
 ```
 
-Alternatively, use the existing `run.py` instead of creating a script.
+`plan` and `execute` read the two settings files from the current folder, or from
+`settings_dir=...`, exactly like the command line. Alternatively, use the existing
+`run.py` instead of creating a script.
 
 Inspection does not train missing models. Run `01_run` or the smoke CLI command
 before `02_inspect`. Requiring a derived product may calculate it from compatible

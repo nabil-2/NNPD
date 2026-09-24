@@ -2,11 +2,15 @@
 
 NNPD implements the Gaussian study of *Prior Dependence in Neural Ratio
 Estimation* on top of a small, reusable experiment framework. The framework
-does not import the Gaussian application or `settings.py`.
+does not import the Gaussian application or the settings files.
 
-**Start with `settings.py`, `gaussian/experiment.py`, and `gaussian/hooks.py`.**
-They respectively define the experiment choices, the scientific/training
-implementation, and the datasets/metrics/plots to expose.
+Everything is split into **training** (what is trained) and **analysis** (what is
+computed from the trained models). Start with the four files that define them:
+
+| | Settings | Implementation |
+|---|---|---|
+| Training | `settings_training.py` | `gaussian/experiment.py` |
+| Analysis | `settings_analysis.py` | `gaussian/analysis.py` |
 
 Full documentation — the usage guides, the settings and CLI reference, and the
 generated Python API — is published at **<https://nabil-2.github.io/NNPD/>**.
@@ -41,27 +45,31 @@ python run.py train --profile default
 python run.py analyze --profile default
 ```
 
-`run` does training and analysis. `train` stops after committed checkpoints.
-`analyze` requires matching data and checkpoints and never trains implicitly.
-Rerunning reuses completed artifacts. A failed, uncommitted stage is restarted,
-not mistaken for a valid checkpoint.
+`train` trains the models of `settings_training.py`. `analyze` computes the
+metrics and plots of `settings_analysis.py` from the latest trained models and
+**never trains**. `run` does both. Rerunning reuses completed artifacts. A failed,
+uncommitted stage is restarted, not mistaken for a valid checkpoint.
 
-**Read the plan before running the full study.** Every configuration's analysis
-cost is checked against the limits in `settings.py` before anything is computed.
-If any configuration exceeds them, `train`, `run` and `analyze` refuse to start
-and name the settings to reduce; nothing is reduced automatically. Truth points
+**Read the plan before running the full study.** The analysis cost of every
+trained model is checked against the limits in `settings_analysis.py` before
+anything is computed. If any model exceeds them, `run` and `analyze` refuse to
+start and name the settings to reduce; nothing is reduced automatically. Truth points
 are Sobol points by default (1,024 at one inferred parameter, doubling per
 additional one). `paper` uses `size_adaptive`: the exact `25**p` grid while it is
 small enough, Sobol above. See [Truth design](docs/guide/configuration.md#truth-design).
 
-## All ordinary choices live in one file
+## All ordinary choices live in two files
 
-`settings.py` contains the complete settings dictionary and the named presets.
-Edit it rather than chasing defaults through implementation files. The presets
-are `default`, `paper`, and `smoke`.
-`default` is the full study exactly as defined in `SETTINGS`. `paper` makes the
-paper-facing choices explicit; it is not a claim of bitwise or figure-for-figure
-reproduction.
+`settings_training.py` holds everything that defines the trained models: problem,
+priors, data, model, training and runtime. `settings_analysis.py` holds everything
+computed from them: inference, verification, metrics, plots and plotting. Change
+the analysis settings and run `analyze` again at any time; the models are reused.
+Edit these files rather than chasing defaults through implementation files.
+
+Both files define the profiles `default`, `paper`, and `smoke`; `--profile`
+selects the same profile in both. `default` is the full study exactly as defined
+in the two `SETTINGS` dictionaries. `paper` makes the paper-facing choices
+explicit; it is not a claim of bitwise or figure-for-figure reproduction.
 
 ### Sweeps: baseline plus one changed knob
 
@@ -103,9 +111,10 @@ use `"priors": Choice([["uniform"], ["normal"], ["exponential"], ["grid"]])`
 inside `cohort`. `replicas` means independently trained models, not repeated
 observations in an inference case.
 
-Runtime settings must remain fixed within a launch; compare CPU/CUDA or `jobs`/`ddp`
-using separate launches. All scientific/model/training/analysis settings can be
-swept. Every alternative is validated before the first job starts.
+`Choice` is for training settings only. An analysis is always a single setting:
+change it and analyze again. Runtime settings must remain fixed within a launch;
+compare CPU/CUDA or `jobs`/`ddp` using separate launches. Every alternative is
+validated before the first job starts.
 
 ### Inferred parameter sets
 
@@ -124,12 +133,13 @@ Set a compatible baseline dimension rather than relying on Cartesian combination
 ## Structure and extension points
 
 ```text
-settings.py                All presets and tunable experiment settings
+settings_training.py       What is trained: training settings and profiles
+settings_analysis.py       What is computed from trained models: analysis settings and profiles
 run.py                     Thin Python entry point
 nnpd/
   core/
-    api.py                 Experiment ABC; Product, Metric, Plot, Context
-    config.py              Explicit Choice and OFAT expansion
+    api.py                 Experiment and Analysis; Product, Metric, Plot, Context
+    settings.py            Explicit Choice, OFAT expansion, settings loading
     runner.py              Planning, execution, restore, integrity verification
     storage.py             Atomic artifact store and array/checkpoint access
     runtime.py             CPU/CUDA and torchrun process management
@@ -141,60 +151,58 @@ nnpd/
     inference.py           Ensemble log ratios and numerical HLD summaries
   results.py               Read runs, export CSV, compare arbitrary saved metrics
 gaussian/
-  experiment.py            Wires the example to the abstract framework
+  experiment.py            What is trained: problem, prior, data, model, training
   problem.py               Gaussian likelihood and selected parameter layout
   sampling.py              Training-data builder
   evaluation.py            Shared truth ensembles, candidates, inference products
   diagnostics.py           Pairwise ratios, reweighting, normalization datasets
   metrics.py               Independent metric functions
   plots.py                 Ordinary Matplotlib plotting functions
-  hooks.py                 Named product/metric/plot registrations
+  analysis.py              What is computed: named products, metrics and plots
   extensions.py            Working custom metric/model metric/plot example
 notebooks/                 Three thin executable notebooks; no function definitions
 tests/                     Unit, science, integration, notebook and distributed tests
 ```
 
-An `Experiment` supplies the problem, prior, data sampler, model builder and
-trainer. A `Product` builds a reusable dataset once. Each metric or plot declares
-which products it needs, and receives those artifacts plus the full context:
-model, simulator, prior, settings, runtime, run directory and artifact store.
-There is no fixed number of hooks and no hard-coded metric switch in the runner.
+An `Experiment`, named by `"experiment"` in the training settings, supplies the
+problem, prior, data sampler, model builder and trainer. An `Analysis`, named by
+`"analysis"` in the analysis settings, registers products, metrics and plots. A
+`Product` builds a reusable dataset once. Each metric or plot declares which
+products it needs, and receives those artifacts plus the full context: model,
+simulator, prior, both settings, runtime, run directory and artifact store. There
+is no fixed number of hooks and no hard-coded metric switch in the runner.
 
 Analysis can be added after training. `gaussian/extensions.py` adds a median-bias
 metric sharing the existing inference data, a direct model-parameter-count metric,
-and a custom observation plot. After a smoke run, this analyzes the already
-trained models without retraining (any other trained profile works the same way):
+and a custom observation plot. To compute them for already trained models, change
+`settings_analysis.py` and analyze again; nothing is retrained:
 
 ```python
-config = make_config("smoke")
-config["application"] = "gaussian.extensions:ExtendedGaussian"
-config["metrics"] += ["median_absolute_bias", "parameter_count"]
-config["plots"] += ["observation_histogram"]
-execute(config, load_experiment(config["application"]), stage="analyze")
+"analysis": "gaussian.extensions:ExtendedAnalysis",
+"metrics": [..., "median_absolute_bias", "parameter_count"],
+"plots": [..., "observation_histogram"],
 ```
 
-`notebooks/03_extensions.ipynb` runs exactly this for its `PROFILE`. See
-[Extending the framework](docs/EXTENDING.md) for contracts and examples.
+`notebooks/03_extensions.ipynb` analyzes trained models again and shows these
+metrics on a saved run. See [Extending the framework](docs/EXTENDING.md) for
+contracts and examples.
 
 ## Notebooks and Python are the same workflow
 
 Execute `notebooks/01_run.ipynb`, then `02_inspect.ipynb`, then
-`03_extensions.ipynb`. The first runs a study; the second reloads saved
-models/data, calls metrics and plots, and exports CSV; the third adds new metrics
-and a plot to the trained models. Each starts with `PROFILE = "smoke"`; set it to
-another profile in all three to use that one.
-The inspection notebook intentionally does not train missing models.
+`03_extensions.ipynb`. The first trains and analyzes a study; the second reloads
+saved models/data, calls metrics and plots, and exports CSV; the third analyzes
+the trained models again and tries new metrics on them. Each starts with
+`PROFILE = "smoke"`; set it to another profile in all three to use that one.
+The second and third notebooks never train.
 
-All of this is also ordinary Python:
+All of this is also ordinary Python, reading the same two settings files:
 
 ```python
-from settings import make_config
-from nnpd import execute, load_experiment, plan
+from nnpd import execute, plan
 
-config = make_config("smoke")
-experiment = load_experiment(config["application"])
-jobs = plan(config, experiment)
-run_directories = execute(config, experiment, settings_file="settings.py")
+jobs = plan("smoke")
+run_directories = execute("run", profile="smoke")  # or "train" / "analyze"
 ```
 
 ## CUDA and multiple GPUs
@@ -212,7 +220,7 @@ including their analysis. For these small networks this is usually the useful
 first option; each job fits on one device.
 
 ```bash
-# settings.py: runtime.parallel="jobs", device="auto" or "cuda"
+# settings_training.py: runtime.parallel="jobs", device="auto" or "cuda"
 CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node=2 run.py run --profile smoke
 ```
 
@@ -222,7 +230,7 @@ GPU count. The trainer handles unequal and empty final shards without duplicatin
 or dropping real training examples.
 
 ```bash
-# settings.py: runtime.parallel="ddp"
+# settings_training.py: runtime.parallel="ddp"
 CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node=2 run.py run --profile smoke
 ```
 
@@ -240,15 +248,16 @@ available. See [Testing and validation](docs/guide/testing.md).
 
 ## Outputs, correctness and scope
 
-Run folders contain the full resolved configuration, cohort member, execution
-status, source-snapshot reference, metrics, plots and relative artifact references.
+Run folders contain the resolved training settings, cohort member, training
+status, the analysis settings and state, source-snapshot references, metrics,
+plots and relative artifact references.
 Shared datasets and model weights live in a content-addressed store; multiple
 metrics do not duplicate them. Numeric arrays use `.npy` with optional memory
 mapping; metadata uses JSON; models use tensor state dictionaries loaded with
 `weights_only=True`. Each profile's output folder holds one experiment: running
-again with changed settings replaces the earlier results, a copy of the settings
-file used is saved there as `settings.py`, and the cache keeps what the last three
-distinct settings used. See [Storage and reproducibility](docs/STORAGE.md).
+again with changed settings replaces the earlier results, copies of both settings
+files are saved there, and the cache keeps what the last three distinct training
+settings used. See [Storage and reproducibility](docs/STORAGE.md).
 
 The example distinguishes the normalized ensemble **likelihood ratio** from a
 **posterior**. Bias, projected HLD coverage, widths, candidate-resolution checks,
@@ -261,7 +270,7 @@ and `paper` presets differ), the normal-prior scale, the truth design and the
 discrete integration measure. Read the [Scientific notes](docs/SCIENTIFIC_NOTES.md)
 before comparing results with the paper.
 Additional priors, publication-specific panels and scheduler-specific launch
-policy belong in optional application hooks, not the framework.
+policy belong in the application's experiment or analysis, not the framework.
 
 ## Tests
 

@@ -1,8 +1,12 @@
-"""A complete extension example. The framework, sampler and trainer are unchanged."""
+"""A complete extension example. The framework, experiment and trainer are unchanged.
+
+Select it in settings_analysis.py: "analysis": "gaussian.extensions:ExtendedAnalysis", and add
+"median_absolute_bias" and "parameter_count" to "metrics" and "observation_histogram" to "plots".
+"""
 import numpy as np
 from matplotlib import pyplot as plt
 from nnpd import Metric, Plot
-from .experiment import GaussianExperiment
+from .analysis import GaussianAnalysis
 
 
 def median_absolute_bias(context, dependencies):
@@ -18,12 +22,12 @@ def parameter_count(context, dependencies):
 def observation_histogram(context, dependencies):
     observations = dependencies["observations"].array("observations")
     fig, ax = plt.subplots(figsize=(6, 4))
-    ax.hist(observations[0, :, 0], bins=context.config["plotting"]["bins"])
+    ax.hist(observations[0, :, 0], bins=context.analysis_settings["plotting"]["bins"])
     ax.set(xlabel="x:0", ylabel="Count", title=f"{type(context.model).__name__}; {context.prior.measure} prior")
     return {"first-ensemble": fig}
 
 
-class ExtendedGaussian(GaussianExperiment):
+class ExtendedAnalysis(GaussianAnalysis):
     def metrics(self):
         return {**super().metrics(),
                 "median_absolute_bias": Metric(median_absolute_bias, ("inference", "observations")),

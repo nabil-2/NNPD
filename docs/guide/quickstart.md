@@ -7,15 +7,15 @@ For a scientific run, replace `smoke` with `default`, `paper`, or your own profi
 | Step | Command line | Notebook |
 |---|---|---|
 | 1. Install | `uv sync` | — |
-| 2. Choose the settings | edit `settings.py` | — |
+| 2. Choose the settings | edit `settings_training.py` and `settings_analysis.py` | — |
 | 3. Check the plan | `python run.py plan --profile smoke` | `01_run` |
 | 4. Train | `python run.py train --profile smoke` | `01_run` |
 | 5. Analyze | `python run.py analyze --profile smoke` | `01_run` |
-| 6. Add analysis later | edit `metrics`/`plots`, then `analyze` again | `03_extensions` |
+| 6. Change the analysis later | edit `settings_analysis.py`, then `analyze` again | `03_extensions` |
 | 7. Inspect the results | `python run.py verify --profile smoke` | `02_inspect` |
 
 `python run.py run` does steps 4 and 5 in one go. Run all commands from the
-repository root, the directory containing `settings.py` and `run.py`.
+repository root, the directory containing the two settings files and `run.py`.
 
 ## 1. Install
 
@@ -40,10 +40,17 @@ CUDA versions, see the [CUDA guide](cuda.md).
 
 ## 2. Choose the settings
 
-All experiment choices live in `settings.py`. `SETTINGS` is the complete
-dictionary, and each profile (`default`, `paper`, `smoke`) is a named set of
-changes to it. `--profile` selects one; without it, `DEFAULT_PROFILE` is used.
-Wrap a value in `Choice([...])` to compare alternatives. See
+The settings are split into two files:
+
+| File | Decides | Sections |
+|---|---|---|
+| `settings_training.py` | What is trained | `problem`, `cohort`, `priors`, `data`, `model`, `training`, `runtime` |
+| `settings_analysis.py` | What is computed from the trained models | `inference`, `verification`, `metrics`, `plots`, `plotting` |
+
+In each file, `SETTINGS` is the complete dictionary, and each profile (`default`,
+`paper`, `smoke`) is a named set of changes to it. `--profile` selects the same
+profile in both files; without it, `DEFAULT_PROFILE` from `settings_training.py`
+is used. Wrap a training value in `Choice([...])` to compare alternatives. See
 [Configuration](configuration.md) and the [settings reference](../reference/settings.md).
 
 ## 3. Check the plan
@@ -54,10 +61,10 @@ python run.py plan --profile smoke
 
 The plan lists every model to train: one per configuration and prior. For each it
 shows the changed setting, the network input size, the truth design, and the
-estimated analysis cost. It computes nothing. Read its `warnings`. If a
-configuration's analysis would exceed the limits in `settings.py`, `plan` exits
-with an error that names the settings to reduce, and the next steps refuse to
-start. See [the feasibility check](configuration.md#analysis-must-be-feasible-before-anything-is-computed).
+estimated analysis cost. It computes nothing. Read its `warnings`. If a model's
+analysis would exceed the limits in `settings_analysis.py`, `plan` exits with an
+error that names the settings to reduce, and `run` and `analyze` refuse to start.
+See [the feasibility check](configuration.md#analysis-must-be-feasible-before-anything-is-computed).
 
 ## 4. Train
 
@@ -65,10 +72,10 @@ start. See [the feasibility check](configuration.md#analysis-must-be-feasible-be
 python run.py train --profile smoke
 ```
 
-This samples the training data and trains each model, then stops. Models that
-already exist with the same training settings are reused, not retrained. For
-several GPUs or processes, launch the same command with `torchrun`; see the
-[CUDA guide](cuda.md).
+This samples the training data and trains each model, then stops. It reads only
+`settings_training.py`. Models that already exist with the same training settings
+are reused, not retrained. For several GPUs or processes, launch the same command
+with `torchrun`; see the [CUDA guide](cuda.md).
 
 ## 5. Analyze
 
@@ -76,17 +83,22 @@ several GPUs or processes, launch the same command with `torchrun`; see the
 python run.py analyze --profile smoke
 ```
 
-This builds the analysis data (truth observations, candidates, inference) and
-writes every selected metric and plot. It needs the trained models from step 4
-and **never trains**: if they are missing, it stops with an error.
+This analyzes the models of the latest successful training with
+`settings_analysis.py`: it builds the analysis data (truth observations,
+candidates, inference) and writes every selected metric and plot. It **never
+trains**: if there are no trained models, it stops with an error. From
+`settings_training.py` it only reads `output` and `runtime`, so later edits to the
+training settings do not change which models are analyzed.
 
-## 6. Add analysis later
+## 6. Change the analysis later
 
-Analysis can be extended at any time without retraining. Add built-in names to
-`metrics` or `plots` in `settings.py` and run `analyze` again: the saved models
-and shared analysis data are reused. New metrics and plots are registered in
-Python; `notebooks/03_extensions.ipynb` adds three to already trained models, and
-the [extension guide](../EXTENDING.md) explains how to write your own.
+Analysis can be changed at any time without retraining. Edit
+`settings_analysis.py`, for example add names to `metrics` or `plots` or change the
+inference resolution, and run `analyze` again: the saved models are reused, and so
+is every analysis dataset whose settings did not change. The new analysis replaces
+the previous one. `notebooks/03_extensions.ipynb` shows this, and tries new metrics
+on a saved run before adding them; the [extension guide](../EXTENDING.md) explains
+how to write your own.
 
 ## 7. Inspect the results
 
@@ -106,30 +118,30 @@ The notebooks run the same steps as the command line. Each starts with
 
 ## Change settings and run again
 
-A profile's output folder holds one experiment, and **the latest settings win**.
-Edit `settings.py` and run again: results of the earlier settings are replaced, so
-`runs/` always matches what you last ran. Only what changed is recomputed. For
-example, a new learning rate retrains the models but reuses the training data.
+A profile's output folder holds one experiment, and **the latest settings win**:
+
+- `train` with changed training settings replaces the earlier runs, so `runs/`
+  always matches what you last trained. Only what changed is retrained: a new
+  learning rate retrains the models but reuses the training data. Training starts
+  each run's analysis over; run `analyze` afterwards.
+- `analyze` with changed analysis settings replaces the metrics and plots of every
+  run. It never retrains.
 
 The cache keeps the trained models and analysis data of the **last three distinct
-settings**, so switching back to one of them is fast. Older ones are deleted.
-A failed launch deletes nothing.
+training settings**, so switching back to one of them is fast. Older ones are
+deleted. A failed launch deletes no runs, models or cached data.
 
-Every successful launch copies the settings file it started from, byte for byte,
-to `outputs/<profile>/settings.py`. If your `settings.py` has changed since, copy
-what you need back from that file, or run the saved file directly with the same
-profile:
+Every successful launch copies the settings files it used, byte for byte, into the
+output folder: `train` copies `settings_training.py`, `analyze` copies
+`settings_analysis.py`, and `run` copies both. If your files have changed since,
+copy what you need back from those copies, or run them directly:
 
 ```bash
-python run.py run --config outputs/smoke/settings.py --profile smoke
+python run.py run --profile smoke --settings-dir outputs/smoke
 ```
 
-Settings changed in Python on top of the file, as notebook 03 does, are not part
-of the copy; each run's `run.json` records the complete settings that were used.
-A launch from Python without `settings_file=` saves no copy.
-
-To keep results side by side instead, give each experiment its own profile in
-`settings.py`; each profile has its own output folder.
+To keep results side by side instead, give each experiment its own profile in both
+settings files; each profile has its own output folder.
 
 ## Where everything is saved
 
@@ -137,22 +149,24 @@ Everything goes into `outputs/<profile>/`:
 
 ```text
 outputs/smoke/
-  settings.py             copy of the settings file of the latest launch
-  history.json            the last three distinct settings and what they used
-  source/<hash>.zip       snapshot of the code and settings.py that were used
+  settings_training.py    copy of the training settings of the latest training
+  settings_analysis.py    copy of the analysis settings of the latest analysis
+  history.json            the last three distinct training settings and what they used
+  source/<hash>.zip       snapshot of the code and settings files that were used
   cache/                  shared, checksummed artifacts, reused across runs
     training/  model/     training data; model weights and loss history
     observations/  candidates/  inference/  ...   analysis data
   runs/baseline-<hash>/uniform-r0-<hash>/   one folder per model
-    run.json              full resolved settings, package versions, backend
-    status.json           running, trained, complete, or failed (with traceback)
+    run.json              resolved training settings, package versions, backend
+    status.json           training state: running, trained, or failed (with traceback)
+    analysis.json         analysis settings and state: running, complete, or failed
     artifacts.json        which cache entries this run uses
     metrics.json          all metrics, also one file each in metrics/
     plots/<plot>/*.png    figures
 ```
 
-The saved `settings.py`, each `run.json` and the `source/` snapshot record exactly
-what produced the current results, so later edits to your `settings.py` do not
-lose them. Move the whole
-`outputs/<profile>/` folder, never a single run folder, because runs refer to the
-shared cache. The [storage guide](../STORAGE.md) has the details.
+The saved settings files, each `run.json` and `analysis.json`, and the `source/`
+snapshots record exactly what produced the current results, so later edits to your
+settings files do not lose them. Move the whole `outputs/<profile>/` folder, never
+a single run folder, because runs refer to the shared cache. The
+[storage guide](../STORAGE.md) has the details.

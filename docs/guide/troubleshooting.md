@@ -7,19 +7,26 @@ That is intentional: `python run.py` uses the `plan` action. Use
 
 ## "Analysis is not feasible for these configurations"
 
-A configuration's estimated analysis exceeds `max_model_evaluations`,
-`max_saved_bytes` or `max_candidate_points`. Nothing was computed. The message
-names each configuration and the settings to reduce: typically the truths
+A model's estimated analysis exceeds `max_model_evaluations`, `max_saved_bytes`
+or `max_candidate_points` in `settings_analysis.py`. Nothing was computed. The
+message names each configuration and the settings to reduce: typically the truths
 (`truth_design`, `sobol_truths`, `truth_points_per_axis`), `repeats`,
 `observations` or `candidate_count`. Raise a limit only if the hardware can
-afford it. Nothing is reduced automatically.
+afford it. Nothing is reduced automatically. Trained models are unaffected: fix
+the analysis settings and run `analyze`.
 
-## Analysis says no matching checkpoint exists
+## Analysis says there are no trained models
 
-`analyze` never trains implicitly. First run `train` or `run` with matching
-scientific/training settings and a compatible backend. Adding analysis hooks can
-reuse a model, but changing its training recipe intentionally selects a distinct
-artifact. For loading existing weights on a different device, use `restore`.
+`analyze` never trains. It analyzes the models of the latest successful `train` or
+`run` in the profile's output folder; train first. Changing
+`settings_training.py` afterwards does not change which models are analyzed; run
+`train` again to train the new settings. For loading existing weights on a
+different device, use `restore`.
+
+## A Choice in the analysis settings is rejected
+
+Sweeps are for training settings. An analysis is one setting: analyze, change the
+setting, and analyze again. Compare the saved metrics in between.
 
 ## A list did not produce several configurations
 
@@ -44,9 +51,10 @@ removing dependencies just to force cache reuse would undermine correctness.
 ## Results of earlier settings are gone
 
 That is intended: in an output folder the latest settings win, and the cache
-keeps only what the last three distinct settings used. The settings of the latest
-launch are saved as `outputs/<profile>/settings.py`. To keep several experiments side
-by side, give each its own profile. See
+keeps only what the last three distinct training settings used. Training starts
+each run's analysis over; run `analyze` again. The latest settings files are saved
+as `outputs/<profile>/settings_training.py` and `settings_analysis.py`. To keep
+several experiments side by side, give each its own profile. See
 [Change settings and run again](quickstart.md#change-settings-and-run-again).
 
 ## A result was moved and no longer loads
