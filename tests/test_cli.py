@@ -39,14 +39,15 @@ def test_unknown_truth_design_is_rejected(tmp_path, tiny):
         main(["--config", str(write_settings(tiny, tmp_path))])
 
 
-def test_cli_train_analyze_verify_and_application_override(tiny, tmp_path, capsys):
+def test_cli_train_analyze_verify_and_saved_settings_copy(tiny, tmp_path, capsys):
+    tiny["application"] = "gaussian.extensions:ExtendedGaussian"
     tiny["metrics"] += ["median_absolute_bias", "parameter_count"]
     tiny["plots"] = ["observation_histogram", "inference"]
     tiny["problem"]["dimension"] = 2
     tiny["problem"]["infer"] = ["mean:*", "std:1"]
     tiny["inference"]["truth_points_per_axis"] = 2
     path = write_settings(tiny, tmp_path)
-    args = ["--config", str(path), "--application", "gaussian.extensions:ExtendedGaussian"]
+    args = ["--config", str(path)]
     main(["train", *args])
     assert runs(tiny["output"]) == []  # training alone is not a completed analysis
     main(["analyze", *args])
@@ -62,6 +63,12 @@ def test_cli_train_analyze_verify_and_application_override(tiny, tmp_path, capsy
     before = {item: item.stat().st_mtime_ns for item in models}
     main(["run", *args])
     assert before and all(item.stat().st_mtime_ns == stamp for item, stamp in before.items())
+    # The settings file is saved byte for byte and runs the same experiment again.
+    saved = Path(tiny["output"]) / "settings.py"
+    assert saved.read_bytes() == path.read_bytes()
+    main(["analyze", "--config", str(saved)])
+    assert [item["path"] for item in runs(tiny["output"])] == [record["path"]]
+    assert saved.read_bytes() == path.read_bytes()
 
 
 def test_application_factory_rejects_non_experiments():

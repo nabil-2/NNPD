@@ -41,6 +41,14 @@ explicit version, output root, and recorded package versions. Cache keys are
 conservative. Products whose builders read new settings must declare them;
 removing dependencies just to force cache reuse would undermine correctness.
 
+## Results of earlier settings are gone
+
+That is intended: in an output folder the latest settings win, and the cache
+keeps only what the last three distinct settings used. The settings of the latest
+launch are saved as `outputs/<profile>/settings.py`. To keep several experiments side
+by side, give each its own profile. See
+[Change settings and run again](quickstart.md#change-settings-and-run-again).
+
 ## A result was moved and no longer loads
 
 Move the whole output root, including `cache`, `source`, and `runs`, rather than

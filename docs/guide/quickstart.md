@@ -1,78 +1,150 @@
 # Your first run
 
-Run the commands below from the repository root: the directory containing
-`settings.py`, `run.py`, and `pyproject.toml`. The documentation website can be
-built separately without installing NNPD; see [Publishing](../publishing.md).
+Every study, small or large, follows the same steps. The examples use the
+`smoke` profile, which uses small datasets and only checks that everything works.
+For a scientific run, replace `smoke` with `default`, `paper`, or your own profile.
 
-## Install the experiment environment
+| Step | Command line | Notebook |
+|---|---|---|
+| 1. Install | `pip install -e ".[dev]"` | — |
+| 2. Choose the settings | edit `settings.py` | — |
+| 3. Check the plan | `python run.py plan --profile smoke` | `01_run` |
+| 4. Train | `python run.py train --profile smoke` | `01_run` |
+| 5. Analyze | `python run.py analyze --profile smoke` | `01_run` |
+| 6. Add analysis later | edit `metrics`/`plots`, then `analyze` again | `03_extensions` |
+| 7. Inspect the results | `python run.py verify --profile smoke` | `02_inspect` |
 
-The application declares Python **3.11 or newer**. Create an isolated environment
-and install the package and its development dependencies:
+`python run.py run` does steps 4 and 5 in one go. Run all commands from the
+repository root, the directory containing `settings.py` and `run.py`.
+
+## 1. Install
+
+Use Python 3.11 or newer in an isolated environment:
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -e ".[dev]"
 ```
 
-On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1` instead of
-`source`. For GPU execution, install the appropriate CUDA-enabled PyTorch build
-for your machine; the [CUDA guide](cuda.md) explains NNPD's execution modes.
+For GPUs, install a CUDA-enabled PyTorch build for your machine first; see the
+[CUDA guide](cuda.md).
 
-## Inspect before running
+## 2. Choose the settings
+
+All experiment choices live in `settings.py`. `SETTINGS` is the complete
+dictionary, and each profile (`default`, `paper`, `smoke`) is a named set of
+changes to it. `--profile` selects one; without it, `DEFAULT_PROFILE` is used.
+Wrap a value in `Choice([...])` to compare alternatives. See
+[Configuration](configuration.md) and the [settings reference](../reference/settings.md).
+
+## 3. Check the plan
 
 ```bash
 python run.py plan --profile smoke
 ```
 
-The JSON plan reports each cohort member, the setting changed from baseline,
-network input size, and estimated inference work. This preset plans four models:
-one per prior, at one baseline configuration and one training replica.
+The plan lists every model to train: one per configuration and prior. For each it
+shows the changed setting, the network input size, the truth design, and the
+estimated analysis cost. It computes nothing. Read its `warnings`. If a
+configuration's analysis would exceed the limits in `settings.py`, `plan` exits
+with an error that names the settings to reduce, and the next steps refuse to
+start. See [the feasibility check](configuration.md#analysis-must-be-feasible-before-anything-is-computed).
 
-Read the workload's `warnings`. If a configuration's analysis would exceed the
-limits in `settings.py`, `plan` lists it and exits with an error, and `train`,
-`run` and `analyze` refuse to start. See
-[the feasibility check](configuration.md#analysis-must-be-feasible-before-anything-is-computed).
-
-## Train and analyze
-
-```bash
-python run.py run --profile smoke
-python run.py verify --profile smoke
-```
-
-`run` samples data, trains missing compatible models, builds requested analysis
-products, computes metrics, and writes figures. The smoke output root is
-`outputs/smoke`. `verify` recomputes checksums of committed cache artifacts; it is
-an integrity check, not a scientific quality score.
-
-A second identical run reuses compatible datasets and checkpoints. Metrics and
-plots are evaluated again; this is not an all-or-nothing cached terminal output.
-
-## Separate the stages
+## 4. Train
 
 ```bash
 python run.py train --profile smoke
+```
+
+This samples the training data and trains each model, then stops. Models that
+already exist with the same training settings are reused, not retrained. For
+several GPUs or processes, launch the same command with `torchrun`; see the
+[CUDA guide](cuda.md).
+
+## 5. Analyze
+
+```bash
 python run.py analyze --profile smoke
 ```
 
-`train` stops after committed weights and history. `analyze` requires matching
-training data and model artifacts and **does not train implicitly**. Use the same
-settings and compatible training backend across those commands. For inspecting
-an existing model on a different device, use `restore`, as shown in
-[Working with results](results.md).
+This builds the analysis data (truth observations, candidates, inference) and
+writes every selected metric and plot. It needs the trained models from step 4
+and **never trains**: if they are missing, it stops with an error.
 
-## Move to a larger profile deliberately
+## 6. Add analysis later
 
-The shipped presets are `default`, `paper`, and `smoke`. The default preset is
-`default`, but the default action is `plan`.
-Start with:
+Analysis can be extended at any time without retraining. Add built-in names to
+`metrics` or `plots` in `settings.py` and run `analyze` again: the saved models
+and shared analysis data are reused. New metrics and plots are registered in
+Python; `notebooks/03_extensions.ipynb` adds three to already trained models, and
+the [extension guide](../EXTENDING.md) explains how to write your own.
+
+## 7. Inspect the results
+
+`notebooks/02_inspect.ipynb` reloads a trained model and its saved data, calls
+metrics and plots directly, and exports a CSV table of all runs. The same works
+in plain Python; see [Working with results](results.md).
 
 ```bash
-python run.py plan --profile default
+python run.py verify --profile smoke
 ```
 
-Do not treat the exhaustive high-dimensional paper plan as a quick example.
-Truth counts, candidate evaluation, and retained arrays can become very large.
-Read the [scientific notes](../SCIENTIFIC_NOTES.md) before interpreting agreement
-or disagreement with the paper.
+`verify` recomputes the checksum of every saved file to detect corruption. It is
+an integrity check, not a measure of scientific quality.
+
+The notebooks run the same steps as the command line. Each starts with
+`PROFILE = "smoke"`; set the same profile in all three. See [Notebooks](notebooks.md).
+
+## Change settings and run again
+
+A profile's output folder holds one experiment, and **the latest settings win**.
+Edit `settings.py` and run again: results of the earlier settings are replaced, so
+`runs/` always matches what you last ran. Only what changed is recomputed. For
+example, a new learning rate retrains the models but reuses the training data.
+
+The cache keeps the trained models and analysis data of the **last three distinct
+settings**, so switching back to one of them is fast. Older ones are deleted.
+A failed launch deletes nothing.
+
+Every successful launch copies the settings file it started from, byte for byte,
+to `outputs/<profile>/settings.py`. If your `settings.py` has changed since, copy
+what you need back from that file, or run the saved file directly with the same
+profile:
+
+```bash
+python run.py run --config outputs/smoke/settings.py --profile smoke
+```
+
+Settings changed in Python on top of the file, as notebook 03 does, are not part
+of the copy; each run's `run.json` records the complete settings that were used.
+A launch from Python without `settings_file=` saves no copy.
+
+To keep results side by side instead, give each experiment its own profile in
+`settings.py`; each profile has its own output folder.
+
+## Where everything is saved
+
+Everything goes into `outputs/<profile>/`:
+
+```text
+outputs/smoke/
+  settings.py             copy of the settings file of the latest launch
+  history.json            the last three distinct settings and what they used
+  source/<hash>.zip       snapshot of the code and settings.py that were used
+  cache/                  shared, checksummed artifacts, reused across runs
+    training/  model/     training data; model weights and loss history
+    observations/  candidates/  inference/  ...   analysis data
+  runs/baseline-<hash>/uniform-r0-<hash>/   one folder per model
+    run.json              full resolved settings, package versions, backend
+    status.json           running, trained, complete, or failed (with traceback)
+    artifacts.json        which cache entries this run uses
+    metrics.json          all metrics, also one file each in metrics/
+    plots/<plot>/*.png    figures
+```
+
+The saved `settings.py`, each `run.json` and the `source/` snapshot record exactly
+what produced the current results, so later edits to your `settings.py` do not
+lose them. Move the whole
+`outputs/<profile>/` folder, never a single run folder, because runs refer to the
+shared cache. The [storage guide](../STORAGE.md) has the details.

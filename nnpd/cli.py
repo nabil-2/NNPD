@@ -15,11 +15,8 @@ def main(argv=None):
     parser.add_argument("action", choices=("plan", "run", "train", "analyze", "verify"), nargs="?", default="plan")
     parser.add_argument("--config", type=Path, default=Path("settings.py"), help="Trusted Python settings file")
     parser.add_argument("--profile", help="Profile from settings.py")
-    parser.add_argument("--application", help="Override application import path module:class from settings.py")
     args = parser.parse_args(argv)
     config = load_settings(args.config, args.profile)
-    if args.application:
-        config["application"] = args.application
     experiment = load_experiment(config["application"])
     if args.action == "plan":
         jobs = plan(config, experiment)

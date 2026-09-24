@@ -3,7 +3,7 @@
 From the repository root:
 
 ```bash
-python run.py [plan|run|train|analyze|verify] [--config PATH] [--profile NAME] [--application MODULE:CLASS]
+python run.py [plan|run|train|analyze|verify] [--config PATH] [--profile NAME]
 ```
 
 After installation, `nnpd` is the equivalent command. Both use the same CLI and
@@ -30,8 +30,12 @@ computing anything.
 |---|---|---|
 | `--config PATH` | `settings.py` in the working directory | Trusted Python file exposing `DEFAULT_PROFILE` and `make_config(profile)`. |
 | `--profile NAME` | That file's `DEFAULT_PROFILE` | Select a preset defined by the settings file. |
-| `--application MODULE:CLASS` | `config["application"]` | Override the experiment class for this invocation. |
 | `-h`, `--help` | — | Show help and exit. |
+
+The experiment class is set by `application` in the settings file. Every
+successful launch copies the settings file byte for byte to `<output>/settings.py`;
+`--config outputs/<profile>/settings.py --profile <profile>` runs it again in the
+same output folder.
 
 Do not expect a flag for every hyperparameter. Ordinary knobs deliberately live
 in one settings file. GPU visibility and distributed worker counts are selected

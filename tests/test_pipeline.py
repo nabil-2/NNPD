@@ -87,6 +87,53 @@ def test_learning_rate_sweep_reuses_data_and_observations_but_not_model(tiny):
     assert a["inference"] != b["inference"]
 
 
+def test_latest_settings_win_and_the_cache_keeps_the_last_three(tiny, tmp_path):
+    root = Path(tiny["output"])
+    models = []
+    for rate in (0.001, 0.002, 0.003, 0.004):
+        tiny["training"]["learning_rate"] = rate
+        settings = tmp_path / f"settings_{rate}.py"
+        settings.write_text(f"# learning rate {rate}\nSETTINGS = {tiny!r}\n")
+        paths = execute(tiny, GaussianExperiment(), settings_file=settings)
+        models.append(saved_references(paths[0])["model"])
+        assert [Path(record["path"]) for record in runs(root)] == paths  # only the latest settings' runs
+        assert (root / "settings.py").read_bytes() == settings.read_bytes()
+    assert not models[0].exists() and all(model.exists() for model in models[1:])
+    assert len(list((root / "cache" / "model").iterdir())) == 3
+    assert len(json.loads((root / "history.json").read_text())) == 3
+    assert saved_references(paths[0])["training"].exists()  # shared by all settings, so kept
+    execute(tiny, GaussianExperiment())  # launched without a settings file: no stale copy remains
+    assert not (root / "settings.py").exists()
+
+
+def test_same_settings_reuse_their_history_entry(tiny):
+    tiny["training"]["learning_rate"] = Choice([0.001, 0.01])
+    execute(tiny, GaussianExperiment(), stage="train")
+    paths = execute(tiny, GaussianExperiment(), stage="analyze")
+    assert execute(tiny, GaussianExperiment(), stage="analyze") == paths
+    assert len(json.loads((Path(tiny["output"]) / "history.json").read_text())) == 1
+
+
+class FailingMetric(GaussianExperiment):
+    def metrics(self):
+        return {**super().metrics(), "failing": Metric(failing, ("model",))}
+
+
+def failing(context, dependencies):
+    raise RuntimeError("deliberate metric failure")
+
+
+def test_failed_launch_deletes_nothing(tiny):
+    paths = execute(tiny, GaussianExperiment())
+    model = saved_references(paths[0])["model"]
+    tiny["training"]["learning_rate"] = 0.01
+    tiny["metrics"] += ["failing"]
+    with pytest.raises(RuntimeError, match="deliberate"):
+        execute(tiny, FailingMetric())
+    assert paths[0].exists() and model.exists()
+    assert len(json.loads((Path(tiny["output"]) / "history.json").read_text())) == 1
+
+
 def test_saved_root_is_relocatable_and_restore_ignores_launcher_environment(tiny, tmp_path, monkeypatch):
     original = execute(tiny, GaussianExperiment())[0]
     destination = tmp_path / "moved"

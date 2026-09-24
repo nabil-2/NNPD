@@ -22,7 +22,9 @@ observations = context.require("observations").array("observations")
 inference = context.require("inference")
 ```
 
-`runs` returns complete runs by default. Pass `complete_only=False` to include
+`runs` returns the complete runs of the latest settings by default; earlier
+settings' runs are replaced when you run again (see
+[Change settings and run again](quickstart.md#change-settings-and-run-again)). Pass `complete_only=False` to include
 trained-only or failed records and inspect their `status`. `restore` loads the
 saved configuration and verifies existing artifact files. It defaults to CPU and
 does not inherit stale distributed rank variables.

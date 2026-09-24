@@ -6,6 +6,8 @@ Each selected output root owns its own store. For example:
 
 ```text
 outputs/smoke/
+  settings.py              copy of the settings file of the latest successful launch
+  history.json             the last three distinct settings and what they used
   source/<source-hash>.zip
   cache/
     training/<key>/
@@ -25,7 +27,7 @@ outputs/smoke/
     ...
   runs/
     baseline-<configuration-hash>/
-      uniform-r0-<job-hash>-<backend-hash>/
+      uniform-r0-<job-hash>/
         run.json
         status.json
         artifacts.json
@@ -37,11 +39,27 @@ outputs/smoke/
 ```
 
 Folder hashes disambiguate settings; readable names identify the changed knob and
-cohort member. `run.json` is the authority for the full configuration—do not decode
-settings from a filename. A run identity includes the resolved configuration and
-cohort member; backend identity is separate. The named metric list is part of the
-run configuration, so adding metrics creates a new result record while reusing the
-same underlying training/model artifacts where compatible.
+cohort member. `run.json` is the authority for the full configuration, including
+the training backend—do not decode settings from a filename.
+
+## Latest settings win
+
+An output root holds one experiment. After a launch succeeds:
+
+- `runs/` holds only that launch's run folders. Runs of earlier settings are removed.
+- `settings.py` is a byte-for-byte copy of the settings file that launch started
+  from. Run it again with `python run.py run --config outputs/smoke/settings.py
+  --profile smoke`. Settings changed in Python on top of the file are not in the
+  copy; `run.json` records the complete settings of each run. A launch from Python
+  without `settings_file=` saves no copy, and any older copy is removed.
+- `cache/` and `source/` keep only what the **last three distinct settings** used,
+  recorded in `history.json`. Everything else is deleted.
+
+Switching back to one of the previous two settings therefore reuses its trained
+models and analysis data. Launching the same settings again, for example `train`
+followed by `analyze`, does not use up another of the three. A failed or
+interrupted launch deletes nothing. With several `torchrun` workers, the worker
+that finishes last does the cleanup.
 
 `source/<hash>.zip` snapshots the framework, the experiment class's application
 folder, local settings/entry-point/packaging files, and an explicitly supplied
@@ -164,6 +182,5 @@ Python code and execute normally; they are not sandboxed. These protections do
 not make an arbitrary malicious download safe. Arbitrary pickled objects are
 never loaded.
 
-Cache cleaning is manual: keep the root intact for portable provenance or delete
-an unused root once no processes are using it. There is no hidden cache eviction
-or remote object-store backend.
+Beyond the automatic cleanup above, delete a whole output root once no process is
+using it. There is no remote object-store backend.

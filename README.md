@@ -240,7 +240,10 @@ status, source-snapshot reference, metrics, plots and relative artifact referenc
 Shared datasets and model weights live in a content-addressed store; multiple
 metrics do not duplicate them. Numeric arrays use `.npy` with optional memory
 mapping; metadata uses JSON; models use tensor state dictionaries loaded with
-`weights_only=True`. See [Storage and reproducibility](docs/STORAGE.md).
+`weights_only=True`. Each profile's output folder holds one experiment: running
+again with changed settings replaces the earlier results, a copy of the settings
+file used is saved there as `settings.py`, and the cache keeps what the last three
+distinct settings used. See [Storage and reproducibility](docs/STORAGE.md).
 
 The example distinguishes the normalized ensemble **likelihood ratio** from a
 **posterior**. Bias, projected HLD coverage, widths, candidate-resolution checks,

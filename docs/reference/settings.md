@@ -30,6 +30,10 @@ rows for a subset while preserving per-case summaries; `"full"` retains all
 score rows. Storage guards estimate selected inference arrays, not complete
 peak RAM, disk use, or wall time.
 
+Each successful launch also copies the settings file it started from to
+`outputs/<profile>/settings.py`; see
+[Change settings and run again](../guide/quickstart.md#change-settings-and-run-again).
+
 ## Presets
 
 | Preset | Purpose |

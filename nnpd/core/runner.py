@@ -8,7 +8,9 @@ import json
 import os
 from pathlib import Path
 import platform
+import shutil
 import traceback
+import uuid
 import zipfile
 
 import numpy as np
@@ -226,12 +228,73 @@ def save_references(context: Context) -> None:
     })
 
 
+KEEP_SETTINGS = 3  # the cache keeps the artifacts used by this many most recent distinct settings
+DONE = {"trained", "complete"}
+
+
+def _run_dir(job: Job) -> Path:
+    variant = (job.changed or "baseline").replace(".", "_")
+    member = safe_name(job.member.get("name", "member"))
+    return Store(job.config["output"]).root / "runs" / f"{variant}-{digest(job.config)[:12]}" / f"{member}-{job.id[:8]}"
+
+
+def _read_json(path: Path, default=None):
+    return json.loads(path.read_text()) if path.is_file() else default
+
+
+def _finish_launch(root: Path, run_dirs: list[Path], settings_file, stage: str, launch: str) -> None:
+    """Latest settings win: keep only this launch's runs, and the cache of the last KEEP_SETTINGS settings.
+
+    The settings file the launch started from is copied byte for byte to <root>/settings.py.
+    Only the process that finishes a launch last does this, so a failed or unfinished launch deletes nothing.
+    """
+    store = Store(root)
+    with store.lock("experiment", "history"):
+        statuses = [_read_json(path / "status.json", {}) for path in run_dirs]
+        if any(status.get("state") not in DONE or status.get("launch") != launch for status in statuses):
+            return  # other workers of this launch are still running; the last one cleans up
+        used = set()
+        for path in run_dirs:
+            for relative in _read_json(path / "artifacts.json")["items"].values():
+                used.add((path / relative).resolve().relative_to(root).as_posix())
+            used.add(f"source/{_read_json(path / 'run.json')['source_archive']}.zip")
+        version = digest(sorted(path.relative_to(root).as_posix() for path in run_dirs))
+        history = [entry for entry in _read_json(root / "history.json", []) if entry["version"] != version]
+        history = [{"version": version, "time": utc_now(), "stage": stage, "uses": sorted(used)},
+                   *history][:KEEP_SETTINGS]
+        write_json(root / "history.json", history)
+        saved = root / "settings.py"
+        if settings_file is None:
+            saved.unlink(missing_ok=True)  # never keep a copy that belongs to earlier settings
+        elif Path(settings_file).resolve() != saved:
+            shutil.copyfile(settings_file, saved)
+        keep = {item for entry in history for item in entry["uses"]}
+        current = set(run_dirs)
+        for path in (root / "runs").glob("*/*"):
+            if path not in current:
+                shutil.rmtree(path)
+        for path in (root / "runs").glob("*"):
+            if path.is_dir() and not any(path.iterdir()):
+                path.rmdir()
+        for path in (root / "cache").glob("*/*"):
+            # Names starting with "." are builds in progress, never committed artifacts.
+            if not path.name.startswith(".") and path.relative_to(root).as_posix() not in keep:
+                shutil.rmtree(path)
+                (root / "locks" / f"{path.parent.name}-{path.name}.lock").unlink(missing_ok=True)
+        for path in (root / "source").glob("*.zip"):
+            if path.relative_to(root).as_posix() not in keep:
+                path.unlink()
+
+
 def execute(config: dict, experiment: Experiment, *, stage: str = "run", settings_file=None) -> list[Path]:
     """Same public entry point for scripts and notebooks.
 
     'jobs': torchrun workers process disjoint complete jobs, including inference.
     'ddp': workers train each model together; only rank zero runs analysis hooks.
     Checkpoints are stage-level: an interrupted, uncommitted training stage restarts.
+    After success, runs of earlier settings are removed, the cache keeps what the last
+    KEEP_SETTINGS distinct settings used, and settings_file (if given) is copied to
+    <output>/settings.py.
     """
     if stage not in {"train", "run", "analyze"}:
         raise ValueError("stage must be train, run, or analyze.")
@@ -241,17 +304,17 @@ def execute(config: dict, experiment: Experiment, *, stage: str = "run", setting
     if any(job.config["runtime"] != runtime_config for job in jobs):
         raise ValueError("Runtime settings cannot vary within one launch; use separate launches.")
     runtime = Runtime(runtime_config)
+    # torchrun gives all workers of one launch the same run ID; a single process makes its own.
+    launch = os.environ.get("TORCHELASTIC_RUN_ID") or uuid.uuid4().hex
+    run_dirs = [_run_dir(job) for job in jobs]
     completed = []
     try:
-        for index, job in enumerate(jobs):
+        for index, (job, run_dir) in enumerate(zip(jobs, run_dirs)):
             if not runtime.ddp and index % runtime.world_size != runtime.rank:
                 continue
             store = Store(job.config["output"])
             variant = (job.changed or "baseline").replace(".", "_")
-            config_id = digest(job.config)[:12]
             member_name = safe_name(job.member.get("name", "member"))
-            backend_id = digest(runtime.training_signature)[:8]
-            run_dir = store.root / "runs" / f"{variant}-{config_id}" / f"{member_name}-{job.id[:8]}-{backend_id}"
             context = Context(experiment, job.config, job.member, store, runtime, run_dir)
             if runtime.leader:
                 run_dir.mkdir(parents=True, exist_ok=True)
@@ -269,7 +332,8 @@ def execute(config: dict, experiment: Experiment, *, stage: str = "run", setting
                     if stage != "train":
                         analyze(context)
                     write_json(run_dir / "status.json", {
-                        "state": "trained" if stage == "train" else "complete", "time": utc_now()})
+                        "state": "trained" if stage == "train" else "complete", "time": utc_now(),
+                        "launch": launch})
                     completed.append(run_dir)
                 runtime.barrier()
             except Exception:
@@ -277,6 +341,10 @@ def execute(config: dict, experiment: Experiment, *, stage: str = "run", setting
                     write_json(run_dir / "status.json", {
                         "state": "failed", "time": utc_now(), "traceback": traceback.format_exc()})
                 raise
+        if runtime.leader:
+            for root in sorted({path.parents[2] for path in run_dirs}):
+                _finish_launch(root, [path for path in run_dirs if path.parents[2] == root],
+                               settings_file, stage, launch)
     finally:
         runtime.close()
     return completed
