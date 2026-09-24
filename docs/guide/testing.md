@@ -55,9 +55,10 @@ It runs the `default` preset at dimension one: four priors, 70,000 training
 plus 15,000 validation and 15,000 test rows per prior, four 64-unit hidden layers,
 Adam at 0.001 for five epochs, 15 observations at each of 1,024 Sobol truth
 points, 16,384 continuous candidates, native grid candidates, 256 verification
-pairs, and the one-million-sample reweighting showcase. With the default single
-CPU thread (`runtime.cpu_threads = 1`) it takes roughly 20 minutes; more threads
-or a GPU make it considerably faster.
+pairs, and the one-million-sample reweighting showcase. Its cost is dominated by
+inference: up to about 2.5·10⁸ model evaluations per prior, reported by the plan as
+`inference_model_evaluations`. Wall time depends on the hardware and on
+`runtime.cpu_threads`.
 
 It writes `results.json` into the output directory, holding the resolved
 configurations, provenance and all metrics. Plots are under each run's `plots/`
