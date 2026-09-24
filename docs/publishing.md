@@ -19,14 +19,17 @@ application, or require a GPU.
    activate the website.
 2. In the repository, open **Settings → Pages**. Under **Build and deployment**,
    set **Source** to **GitHub Actions**.
-3. Push to the repository's default branch. If the initial push happened before
-   Pages was enabled, open **Actions → Documentation → Run workflow**, select the
-   default branch, and run it again. The deployment job and Pages settings show
-   the actual published URL after success.
+3. Open **Actions → Documentation → Run workflow**, choose the branch to publish
+   from, leave **Publish the built documentation to GitHub Pages** ticked, and
+   start the run. The deployment job and the Pages settings show the actual
+   published URL after success.
 
-No repository name or account name is hard-coded. The workflow uses the
-repository's default branch, whether it is `main`, `master`, or another name.
-The usual project-site address has the form:
+Publishing is deliberate: pushing a commit never republishes the website on its
+own. Rebuilding and publishing is always the manual **Run workflow** step above.
+See [What the workflow does](#what-the-workflow-does) for the triggers.
+
+No repository name or account name is hard-coded. The usual project-site address
+has the form:
 
 ```text
 https://<owner>.github.io/<repository>/
@@ -38,23 +41,34 @@ or organization policies can also restrict Actions and deployments. A repository
 administrator must allow the required actions and Pages environment.
 
 ```{note}
-No deployment is performed by extracting this ZIP. The workflow needs your
-repository and its Pages setting. Local validation is not evidence of a live
-GitHub deployment.
+No deployment is performed by extracting this ZIP, and none happens on a push.
+The workflow needs your repository, its Pages setting, and a manual run. Local
+validation is not evidence of a live GitHub deployment.
 ```
 
 ## What the workflow does
 
-On pushes, pull requests, and manual dispatches, the build job installs only
-`docs/requirements.txt`, validates documentation sources, and builds HTML with
-Sphinx warnings treated as errors. It also checks links and fragment targets in
-the generated local HTML.
+The build job installs only `docs/requirements.txt`, validates documentation
+sources, and builds HTML with Sphinx warnings treated as errors. It also checks
+links and fragment targets in the generated local HTML. It runs on three
+triggers, but only one of them can publish:
 
-Publishing happens only for a non-pull-request run on the default branch. Pull
-requests build the documentation but do not deploy it or receive Pages write
-permissions. The separate deployment job has the required `pages: write` and
-`id-token: write` permissions and uses the `github-pages` environment. No personal
-access token is needed by the supplied workflow.
+| Trigger | Builds | Publishes |
+|---|---|---|
+| **Run workflow** (manual dispatch), `deploy` ticked | yes | yes |
+| **Run workflow** (manual dispatch), `deploy` unticked | yes | no — build check only |
+| Push to `main` | yes | no |
+| Pull request | yes | no |
+
+Pushes and pull requests exist to catch a broken documentation build early. They
+never deploy and never receive Pages write permissions. Untick `deploy` on a
+manual run to rehearse a publish without changing the live site.
+
+The separate deployment job runs only for a manual dispatch that asked to deploy.
+It has the required `pages: write` and `id-token: write` permissions and uses the
+`github-pages` environment. No personal access token is needed by the supplied
+workflow. Because the branch is chosen at dispatch time, the website can be
+published from a branch other than `main` when that is what you want.
 
 The workflow uploads only the built HTML directory, not arbitrary training
 outputs. The website deliberately contains the existing documentation, selected

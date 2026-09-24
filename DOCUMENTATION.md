@@ -8,12 +8,14 @@ The new files add a Sphinx website and its documentation-only publishing workflo
 
 Push the **contents of this directory** to your GitHub repository root, including
 `.github/workflows/docs.yml`. In **Settings → Pages → Build and deployment**, set
-**Source: GitHub Actions**. Push to the default branch or run **Actions →
-Documentation → Run workflow** on that branch. After a successful deployment,
-GitHub displays the website URL in Pages settings and the workflow.
+**Source: GitHub Actions**. Then publish manually: **Actions → Documentation →
+Run workflow**, pick the branch, keep the `deploy` box ticked, and run it. After a
+successful deployment, GitHub displays the website URL in Pages settings and the
+workflow.
 
-The default branch and repository name are detected automatically. Pull requests
-build-check documentation but do not publish it. No training is run by the
+Publishing is manual by design. Pushes to `main` and pull requests build-check the
+documentation but never publish it, so the live website only changes when you ask
+for it. The repository name is detected automatically. No training is run by the
 website build.
 
 ## Local build
