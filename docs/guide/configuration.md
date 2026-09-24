@@ -7,8 +7,8 @@ The function deep-copies the main dictionary and applies explicit preset
 adjustments. Values set later by a preset override corresponding values in
 `SETTINGS`; edit the relevant part of this same file.
 
-The [settings reference](../reference/settings.md) displays the complete original
-file directly, so names and default values are not maintained in a separate copy.
+The [settings reference](../reference/settings.md) displays the complete file
+directly, so names and default values are not maintained in a separate copy.
 Application and settings modules are trusted Python, not sandboxed configuration.
 
 ## Baseline plus one changed knob

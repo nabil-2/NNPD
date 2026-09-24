@@ -32,7 +32,7 @@ it does not train. `context.require(name)` resolves the **current** product
 recipe, reusing a compatible artifact or building the requested derived product.
 Changed analysis code or dependencies can therefore recalculate derived data.
 
-## Read an original artifact without recomputing it
+## Read a saved artifact without recomputing it
 
 For direct inspection of a product referenced by a saved run:
 

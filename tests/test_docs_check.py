@@ -1,11 +1,11 @@
-"""Tests for the documentation-only checker; no scientific code is changed."""
+"""Tests for the documentation checker in docs/check.py (standard library only)."""
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
 
-DOCS = Path(__file__).resolve().parents[1]
+DOCS = Path(__file__).resolve().parents[1] / "docs"
 spec = spec_from_file_location("docs_check", DOCS / "check.py")
 checks = module_from_spec(spec)
 spec.loader.exec_module(checks)

@@ -58,8 +58,8 @@ def test_all_variants_validated_before_first_training(tiny):
     assert not __import__("pathlib").Path(tiny["output"]).exists()
 
 
-def test_legacy_configuration_is_explicit():
-    jobs = plan(make_config("legacy"), GaussianExperiment())
+def test_default_configuration_is_explicit():
+    jobs = plan(make_config("default"), GaussianExperiment())
     assert len(jobs) == 24  # 6 configurations, fixed 4-prior cohort
     assert [jobs[i].config["problem"]["dimension"] for i in range(0, 24, 4)] == list(range(1, 7))
     base = jobs[0].config

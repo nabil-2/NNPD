@@ -31,20 +31,20 @@ peak RAM, disk use, or wall time.
 
 | Preset | Purpose |
 |---|---|
-| `legacy` | The active old Python entry-point settings with documented engineering changes. |
+| `default` | The full study exactly as defined in `SETTINGS`, dimensions one through six. |
 | `paper` | Explicit paper-facing changes: exponential sign, exhaustive truths, continuous ratio-candidate measure, and ratio/exact targets. |
 | `smoke` | Small four-prior end-to-end run. |
 | `mixed` | Small OFAT comparison of mean/standard-deviation parameter sets, architecture, and learning rate. |
 | `extended` | Additional metrics/plot; shares the smoke output root to demonstrate cache reuse. |
 | `smoke_ddp` | Small uniform-prior example with collective training selected. |
 
-The existing [scientific notes](../SCIENTIFIC_NOTES.md) describe the source
-settings and interpretation differences in detail.
+The [scientific notes](../SCIENTIFIC_NOTES.md) map these settings to the paper
+and explain the `default`/`paper` differences in detail.
 
 ## Complete settings and preset definitions
 
 ```{literalinclude} ../../settings.py
 :language: python
 :linenos:
-:caption: settings.py (read from the unchanged source file)
+:caption: settings.py
 ```

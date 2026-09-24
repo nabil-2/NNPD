@@ -7,11 +7,11 @@ The four training priors are an explicitly repeated comparison cohort in every r
 from copy import deepcopy
 from nnpd import Choice
 
-DEFAULT_PROFILE = "legacy"
+DEFAULT_PROFILE = "default"
 
 SETTINGS = {
     "application": "gaussian:GaussianExperiment",
-    "output": "outputs/legacy",
+    "output": "outputs/default",
     "seed": 0,
     "problem": {
         "dimension": Choice([1, 2, 3, 4, 5, 6]),
@@ -94,7 +94,7 @@ SETTINGS = {
 }
 
 # Presets are here, not hidden inside the framework. Scientific differences are documented.
-PROFILES = ("legacy", "paper", "smoke", "mixed", "extended", "smoke_ddp")
+PROFILES = ("default", "paper", "smoke", "mixed", "extended", "smoke_ddp")
 
 
 def make_config(profile: str = DEFAULT_PROFILE) -> dict:

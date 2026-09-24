@@ -101,7 +101,7 @@ def _json_value(value):
 
 
 def _source_snapshot(store: Store, experiment: Experiment, settings_file=None) -> str:
-    """Archive our own implementation, not the uploaded legacy repository."""
+    """Snapshot the framework, application, settings and entry-point sources used by this run."""
     package = Path(__file__).resolve().parents[1]
     application = Path(inspect.getfile(type(experiment))).resolve().parent
     files = {f"nnpd/{path.relative_to(package)}": path for path in package.rglob("*.py")}

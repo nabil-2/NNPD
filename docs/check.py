@@ -1,14 +1,11 @@
 """Documentation-only checks. Uses the standard library, not the NNPD runtime.
 
-Run from any directory. --html checks a Sphinx HTML output tree. The optional
---verify-original checks this release against the original ZIP's file manifest;
-it is deliberately not used by CI, so future application edits remain possible.
+Run from any directory. --html checks a Sphinx HTML output tree.
 """
 from __future__ import annotations
 
 import argparse
 import ast
-import hashlib
 from html.parser import HTMLParser
 import json
 from pathlib import Path
@@ -23,7 +20,7 @@ ROOT = DOCS.parent
 def check_sources() -> tuple[dict, list[str]]:
     errors: list[str] = []
     pages = [p for p in DOCS.rglob("*.md")
-             if not {"_build", "_validation", ".venv", "autoapi"} & set(p.parts)]
+             if not {"_build", ".venv", "autoapi"} & set(p.parts)]
     targets = 0
     snippets = 0
     for page in pages:
@@ -124,30 +121,13 @@ def check_html(directory: Path) -> tuple[dict, list[str]]:
     return {"html_pages": len(pages), "internal_links_and_assets_checked": checked}, errors
 
 
-def check_original() -> tuple[dict, list[str]]:
-    manifest = json.loads((DOCS / "_validation" / "original-files.json").read_text(encoding="utf-8"))
-    errors = []
-    for relative, expected in manifest["files"].items():
-        path = ROOT / relative
-        if not path.is_file():
-            errors.append(f"Original file is missing: {relative}")
-        elif hashlib.sha256(path.read_bytes()).hexdigest() != expected:
-            errors.append(f"Original file changed: {relative}")
-    return {"original_files_checked": len(manifest["files"])}, errors
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--html", type=Path, help="Check generated Sphinx HTML links/assets.")
-    parser.add_argument("--verify-original", action="store_true", help="Compare original-release file hashes.")
     args = parser.parse_args()
     report, errors = check_sources()
     if args.html:
         result, failures = check_html(args.html)
-        report.update(result)
-        errors.extend(failures)
-    if args.verify_original:
-        result, failures = check_original()
         report.update(result)
         errors.extend(failures)
     report["errors"] = errors

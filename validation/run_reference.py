@@ -1,7 +1,7 @@
-"""Validation only: full legacy 1D settings and the mixed-parameter example.
+"""Reference runs: the default settings at dimension one, and the mixed-parameter example.
 
-Run from the repository root. Large runtime artifacts go outside the distributable
-package. Reports and the exact resolved configurations are kept in validation/.
+Run from the repository root. All artifacts go to --output, outside the source tree,
+together with a <name>_results.json report of the resolved configurations and metrics.
 """
 from pathlib import Path
 import argparse
@@ -17,11 +17,11 @@ from nnpd import execute, load_experiment
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("profile", choices=["legacy_1d", "mixed"])
+    parser.add_argument("profile", choices=["default_1d", "mixed"])
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    cfg = make_config("legacy" if args.profile == "legacy_1d" else "mixed")
-    if args.profile == "legacy_1d":
+    cfg = make_config("default" if args.profile == "default_1d" else "mixed")
+    if args.profile == "default_1d":
         cfg["problem"]["dimension"] = 1
     cfg["output"] = str(args.output.resolve())
     cfg["runtime"]["device"] = "cpu"
@@ -31,7 +31,7 @@ def main():
     for path in paths:
         record = json.loads((path / "run.json").read_text())
         report["runs"].append({"run": record, "metrics": json.loads((path / "metrics.json").read_text())})
-    destination = ROOT / "validation" / f"{args.profile}_results.json"
+    destination = args.output.resolve() / f"{args.profile}_results.json"
     destination.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     print(f"Saved {destination}; {len(paths)} runs in {report['seconds']:.1f} s", flush=True)
 

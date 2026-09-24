@@ -63,15 +63,15 @@ an existing model on a different device, use `restore`, as shown in
 
 ## Move to a larger profile deliberately
 
-The shipped presets are `legacy`, `paper`, `smoke`, `mixed`, `extended`, and
-`smoke_ddp`. The default preset is `legacy`, but the default action is `plan`.
+The shipped presets are `default`, `paper`, `smoke`, `mixed`, `extended`, and
+`smoke_ddp`. The default preset is `default`, but the default action is `plan`.
 Start with:
 
 ```bash
-python run.py plan --profile legacy
+python run.py plan --profile default
 ```
 
 Do not treat the exhaustive high-dimensional paper plan as a quick example.
 Truth counts, candidate evaluation, and retained arrays can become very large.
 Read the [scientific notes](../SCIENTIFIC_NOTES.md) before interpreting agreement
-or disagreement with the original paper or code.
+or disagreement with the paper.

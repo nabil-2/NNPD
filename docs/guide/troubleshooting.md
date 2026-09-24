@@ -63,9 +63,9 @@ finite-candidate limitations.
 
 ## The documentation has not appeared on GitHub
 
-The repository must contain `.github/workflows/docs.yml` at its root; uploading
-only the ZIP does not install the workflow. Enable **Settings → Pages → Build
-and deployment → Source: GitHub Actions**. Push to the default branch or manually
-run the documentation workflow on that branch. Inspect the build/deploy jobs in
-the Actions tab. Detailed steps and permission caveats are in
+The repository must contain `.github/workflows/docs.yml` at its root. Enable
+**Settings → Pages → Build and deployment → Source: GitHub Actions**. Publishing
+is manual: pushes only build-check the documentation, so run the documentation
+workflow on the desired branch with `deploy` ticked. Inspect the build/deploy jobs
+in the Actions tab. Detailed steps and permission caveats are in
 [Publishing the website](../publishing.md).

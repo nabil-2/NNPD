@@ -13,7 +13,7 @@ language = "en"
 extensions = ["myst_parser", "autoapi.extension", "sphinx.ext.githubpages"]
 source_suffix = {".rst": "restructuredtext", ".md": "markdown"}
 root_doc = "index"
-exclude_patterns = ["_build", ".venv", "_validation", "Thumbs.db", ".DS_Store"]
+exclude_patterns = ["_build", ".venv", "Thumbs.db", ".DS_Store"]
 myst_heading_anchors = 3
 
 # Parse source files rather than import torch, run settings, or train models.

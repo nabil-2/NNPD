@@ -2,8 +2,9 @@
 
 These are the execution modes implemented by `nnpd/core/runtime.py` and the
 bundled trainer. Custom trainers must implement their own distributed contract.
-The shipped application test report documents CPU execution; physical CUDA and
-multi-node execution were not validated in that report.
+The test suite runs CPU and two-process CPU (Gloo) execution everywhere; its CUDA
+tests run only on machines with suitable GPUs, and multi-node launches are not
+tested.
 
 ## Choose a device
 
@@ -77,5 +78,5 @@ and atomic operations work across workers. No site-specific scheduler settings
 are supplied. Do not run two independent analyses that write the same result
 directory concurrently.
 
-See [Storage](../STORAGE.md) and the unchanged [application test report](../TEST_REPORT.md)
-for the precise guarantees and validation boundaries.
+See [Storage](../STORAGE.md) and [Testing and validation](testing.md) for the
+precise guarantees and validation boundaries.

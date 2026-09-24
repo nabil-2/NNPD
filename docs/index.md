@@ -35,10 +35,9 @@ without resampling its data or retraining a model. Sweep alternatives vary **one
 knob at a time**, not every possible combination.
 
 ```{important}
-This documentation describes the code shipped in this repository. The existing
-scientific notes and test report are included without rewriting their claims.
-A working smoke run is not reproduction of the paper's full study; physical CUDA
-validation and numerical-convergence limitations remain as documented.
+A working smoke run is not a reproduction of the paper's full study. Read the
+[scientific notes](SCIENTIFIC_NOTES.md) and [testing guide](guide/testing.md) for
+the implemented definitions, numerical-convergence limits, and what the tests cover.
 ```
 
 ```{toctree}
@@ -70,8 +69,7 @@ reference/settings
 reference/cli
 reference/api
 SCIENTIFIC_NOTES
-guide/gallery
-TEST_REPORT
+guide/testing
 guide/troubleshooting
 ```
 
@@ -80,8 +78,7 @@ guide/troubleshooting
 :caption: Documentation website
 
 publishing
-DOCS_TEST_REPORT
 ```
 
-The original repository overview is also available as a
+The repository overview is also available as a
 {download}`Markdown file <../README.md>`.

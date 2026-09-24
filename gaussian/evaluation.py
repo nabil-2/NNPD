@@ -70,7 +70,7 @@ def inference_observations(context, dependencies, writer):
     else:
         seed = context.seed("truth-design", base=cfg["seed"], member=False)
         truths = low + unit_sobol(count, dimension, seed) * (high - low)
-    # Explicit legacy compatibility option, independent of the current training prior.
+    # Explicit option, independent of which priors are in the training cohort.
     # Do not silently change the truth set when changing the comparison cohort.
     if cfg["align_truths_to_grid"]:
         for j, parameter in enumerate(problem.parameters):

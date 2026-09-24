@@ -205,8 +205,8 @@ export_csv("outputs/smoke", "outputs/summary.csv", {
 ```
 
 `restore` reloads data/weights without training. Requiring a derived product checks
-its current recipe; changed analysis code may rebuild that product. Use the saved
-source snapshot and compatible package versions for an old-analysis reproduction.
+its current recipe; changed analysis code may rebuild that product. To reproduce
+an earlier analysis, use the saved source snapshot and compatible package versions.
 Or inspect its artifact arrays directly using the paths in `artifacts.json`.
 Filter `records` before plotting to keep different OFAT axes, replicas or backends
 from being accidentally pooled as though they were the same experiment.

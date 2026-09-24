@@ -22,9 +22,9 @@ membership, and selected raw score rows for each enabled target.
 
 Adding a consumer does not require another copy of this shared inference dataset.
 Changing its dependencies or relevant settings can create a different artifact.
-For example, HLD summaries and retained scores currently form one inference
-product; changing the HLD levels rebuilds that product rather than invoking a
-separate offline threshold-only engine.
+For example, HLD summaries and retained scores form one inference product;
+changing the HLD levels rebuilds that product rather than recomputing thresholds
+from previously retained scores.
 
 ## Built-in metrics
 
@@ -67,7 +67,7 @@ can be reused rather than duplicated in a separate cache root.
 
 ## Complete registration and extension examples
 
-These snippets are included from the unchanged application sources:
+These files are included directly from the application sources:
 
 ```{literalinclude} ../../gaussian/hooks.py
 :language: python

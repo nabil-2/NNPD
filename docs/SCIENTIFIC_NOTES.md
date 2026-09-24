@@ -1,19 +1,11 @@
-# Scientific interpretation and migration from the supplied sources
+# Scientific notes
 
 ## Basis and scope
 
-The supplied sources are `NNPD camera ready.pdf` (five pages, *Prior Dependence in
-Neural Ratio Estimation*) and `NNPD-toy_example_poc.zip`. The source inventory and
-SHA-256 checksums are recorded in `validation/source_inventory.json`. The paper,
-active Python entry point, current notebook, historical exploratory notebooks,
-analysis utilities, tests and launch scripts were inspected. The active entry
-point is the baseline for the `legacy` preset; historical notebooks do not all
-represent the same experiment.
-
-The framework is newly structured. Its Gaussian application carries over the
-active study's scientific ingredients while exposing ambiguities and implementation
-changes rather than claiming identical random draws, checkpoints or published
-figures. The old data/checkpoint/figure formats are not imported automatically.
+The Gaussian application implements the study described in *Prior Dependence in
+Neural Ratio Estimation*. This page records what that paper specifies, how its
+quantities map to settings, where the implementation has to choose an
+interpretation, and which numerical limits apply when reading results.
 
 ## What the paper specifies
 
@@ -30,63 +22,60 @@ Figure 1 on page 3 illustrates one- and two-dimensional projections for a 3D
 exponential-prior example. Figure 2 on page 4 compares one-dimensional estimates
 and HLD intervals across priors. Figure 3 shows dimension-wise coverage and
 absolute-bias/width summaries. The paper reports little prior dependence in its
-study. That conclusion is a result of the supplied paper, not established anew
-by this package's small validation runs.
+study. That conclusion comes from the paper; small smoke or reference runs of this
+package do not establish it anew.
 
-## Mapping to the new settings
+## Settings for the study's quantities
 
-| Quantity | Active old source | New setting/default |
+| Quantity | Setting | `default` value |
 |---|---|---|
-| Observation dimension | CLI `n_parameters`; notebook config | `problem.dimension = Choice([1,2,3,4,5,6])` |
-| Inferred coordinates | All Gaussian means | `problem.infer = ["mean:*"]` |
-| Fixed observation standard deviation | `data.std_dev = 2` | `problem.fixed_std = 2.0` |
-| Mean domain | `(0,10)` | `problem.parameters.mean.low/high` |
-| Uniform/normal/exponential/grid models | `build_priors`, prior samplers | `cohort.priors`, `priors`, parameter options |
-| Normal prior | `(5,4)` | `normal_mean=5`, **`normal_std=4`** |
-| Exponential shape | CLI/current notebook `+0.1` | `exponential_rate=+0.1` in `legacy` |
-| Discrete grid | `step=0.2` | `grid_step=0.2`, 51 support points per mean axis |
-| Training/validation/test | 70,000 / 15,000 / 15,000 | `data.train_size`, `validation_size`, `test_size` |
-| Architecture | Initial dense layer plus `n_hidden_layers=3` | `model.hidden=[64,64,64,64]` |
-| Optimizer | Adam, learning rate .001 | `training.optimizer`, `learning_rate` |
-| Training | 5 epochs, batch 128, one model iteration | `training.epochs/batch_size`, `cohort.replicas=1` |
-| Ensemble size | `n_repititions_per_parameter=15` | `inference.observations=15` |
-| Truth count | 25 per axis | `truth_points_per_axis=25` |
-| Truth margin | CLI `.1` of domain width | `truth_margin_fraction=.1`, hence `[1,9]` for means |
-| Large truth designs | Auto grid limit 1,000,000; 65,536 Sobol truths | `truth_design`, `max_grid_truths`, `sobol_truths` |
-| Candidate approximation | CLI `2**14`, QMC seed 2026 | `candidate_count=16384`, `inference.seed=2026` |
-| Nominal region masses | 68%, 95% | `levels=[.68,.95]`, not tail probabilities |
-| Pairwise verification | 256 pairs, 512 samples per endpoint | `verification.pairs/samples_per_endpoint` |
-| Reweighting verification | 2,048 source and target; 32 directions | `source_samples/target_samples/directions` |
-| Marginal ratio check | 1,000 observations; 5 theta settings | `marginal_samples/normalization_thetas` |
-| Fixed showcase | All means 3 to 7; 1,000,000 samples; 1,000 bins | `verification.showcase` |
-| Prior histogram | 200,000 samples, 100 bins | `plotting.prior_points/bins` |
+| Observation dimension | `problem.dimension` | `Choice([1,2,3,4,5,6])` |
+| Inferred coordinates | `problem.infer` | `["mean:*"]`: all Gaussian means |
+| Fixed observation standard deviation | `problem.fixed_std` | `2.0` |
+| Mean domain | `problem.parameters.mean.low/high` | `[0,10]` |
+| Prior families | `cohort.priors`, `priors` | uniform, normal, exponential, grid |
+| Normal prior | `normal_mean`, `normal_std` | `5`, **`4` as a standard deviation** |
+| Exponential shape | `exponential_rate` | `+0.1` (`paper`: `-0.1`) |
+| Discrete grid | `grid_step` | `0.2`: 51 support points per mean axis |
+| Training/validation/test rows | `data.train_size`, `validation_size`, `test_size` | 70,000 / 15,000 / 15,000 |
+| Architecture | `model.hidden` | `[64,64,64,64]`, ReLU |
+| Optimizer | `training.optimizer`, `learning_rate` | Adam, `0.001` |
+| Training | `training.epochs`, `batch_size`, `cohort.replicas` | 5 epochs, batch 128, one model per prior |
+| Ensemble size | `inference.observations` | 15 |
+| Truth count | `truth_points_per_axis` | 25 per axis |
+| Truth margin | `truth_margin_fraction` | `0.1` of the domain width, hence `[1,9]` for means |
+| Large truth designs | `truth_design`, `max_grid_truths`, `sobol_truths` | `auto`: a grid up to 1,000,000 truths, otherwise 65,536 Sobol truths |
+| Candidate approximation | `candidate_count`, `inference.seed` | 16,384 Sobol candidates, QMC seed 2026 |
+| Nominal region masses | `levels` | `[0.68, 0.95]`, enclosed masses rather than tail probabilities |
+| Pairwise verification | `verification.pairs`, `samples_per_endpoint` | 256 pairs, 512 samples per endpoint |
+| Reweighting verification | `source_samples`, `target_samples`, `directions` | 2,048 source and target samples; 32 directions |
+| Marginal ratio check | `marginal_samples`, `normalization_thetas` | 1,000 observations; 5 theta settings |
+| Fixed showcase | `verification.showcase` | All means 3 to 7; 1,000,000 samples; 1,000 bins |
+| Prior histogram | `plotting.prior_points`, `bins` | 200,000 samples, 100 bins |
 
 The standard-deviation inference bounds `[.2,4]` and associated prior parameters
-are **new example choices**, not values prescribed by the paper's means-only
-study. Change them in the same settings file.
+are **example choices of this implementation**. The paper's study infers means
+only. Change them in the same settings file.
 
-## Explicit source differences and engineering choices
+## Interpretation and implementation choices
 
-**Exponential sign.** The paper states lambda `-0.1`; the active CLI and current
-notebook use `+0.1`. `legacy` uses the latter and `paper` the former. The implemented
-bounded density is proportional to `exp(-lambda * theta)` on the finite parameter
-box, so either sign is well-defined after normalization. Negative rate is not
-passed to an unbounded exponential sampler.
+**Exponential sign.** The paper states a rate of `-0.1`. The `default` preset uses
+`+0.1`; the `paper` preset uses `-0.1`. The implemented bounded density is
+proportional to `exp(-rate * theta)` on the finite parameter box. A positive rate
+therefore decreases toward the upper bound, and a negative rate increases. Either
+sign is well-defined after normalization. A negative rate is never passed to an
+unbounded exponential sampler.
 
 **Normal notation.** The paper writes `N(5,4)` without saying in that expression
-whether 4 is a variance or a standard deviation. The supplied code explicitly
-uses a standard deviation of 4; the new application follows that code convention.
+whether 4 is a variance or a standard deviation. This implementation uses a
+standard deviation of 4 (`normal_std=4`).
 
-**Current notebook versus CLI.** The current notebook uses zero inference margin,
-65,536 candidate points, prediction batches of 32,768, and a larger evaluation
-cap (`2e15`) than the CLI defaults. It also uses a 4-to-6 fixed reweighting showcase
-with 100,000,000 samples. Those notebook settings are not silently substituted for
-the active CLI preset. The new evaluator defaults to 65,536 prediction rows per
-batch rather than the CLI's `2**21`; this is an engineering memory choice, not an
-intended change in the evaluated mathematical quantity.
+**Evaluation batches.** `training.evaluation_batch_size` (65,536 rows by default)
+sets how many network inputs are evaluated at once during prediction and
+inference. It is a memory setting, not a change in the evaluated quantity.
 
 **Discrete measure.** A grid prior is a probability mass function, not a continuous
-PDF that is zero almost everywhere. `legacy` uses the grid's native counting
+PDF that is zero almost everywhere. `default` uses the grid's native counting
 measure (or a QMC approximation when its support is too large). The `paper` preset
 uses continuous candidates for the normalized ratio, reflecting the continuous
 integral in equation (4), and disables posterior inference for that choice.
@@ -98,39 +87,24 @@ versus Lebesgue measure are therefore not interchangeable. Set
 `native_grid_prior=False` with ratio/exact targets to use common continuous
 candidate measure across priors; a discrete posterior requires native support.
 
-**Truth points and repeats.** The current CLI aligns truths to the grid when the
-grid prior participates. The new `align_truths_to_grid` flag is independent of
-which priors are in the cohort, making that dependency explicit and stable when
-comparing subsets. The new design snaps continuous truth coordinates to eligible
-lattice points; it retains and reports duplicate truths rather than silently
-removing inference cases. The old grid-axis builder selects evenly spaced eligible
-support indices and guards distinctness. `repeats` creates independently sampled
-observation ensembles at each truth; `observations` is the number within each
-ensemble; `replicas` controls independently trained models. These are three
-separate concepts.
+**Truth points and repeats.** `align_truths_to_grid` snaps continuous truth
+coordinates to the nearest eligible lattice points of each parameter's
+`grid_step`. The flag is independent of which priors are in the cohort. The truth
+set therefore stays the same when comparing subsets of priors. Snapping can
+produce duplicate truths; they are retained and reported rather than silently
+removing inference cases. `repeats` creates independently sampled observation
+ensembles at each truth; `observations` is the number within each ensemble;
+`replicas` controls independently trained models. These are three separate
+concepts.
 
-**Sampling and training.** The new code uses dedicated deterministic random streams
-rather than one mutable global generator; exact RNG sequences differ. Truncated
+**Sampling and training.** Each stochastic step draws from its own named,
+deterministic random stream rather than one mutable global generator. Truncated
 normal samples use inverse-CDF sampling rather than rejection. Each data split is
-exactly class-balanced and requires an even row count, rather than a single
-balanced dataset followed by an approximately balanced random split. The classifier
-returns logits, with BCE-with-logits and direct log-ratio inference, instead of
-forming potentially saturated sigmoid odds. Epoch loss is sample-weighted. These
-changes deliberately prevent numerical/pathological behavior; they mean a fixed
-seed is not a bitwise legacy reproduction.
-
-**Historical notebooks.** Earlier 1D and 2D notebooks explore gamma/sinusoidal priors
-and inference of a Gaussian mean plus standard deviation. The old nD notebook
-also contains repeated implementations, unbounded samplers alongside bounded
-normalizations, and posterior products that apply the prior once per observation.
-The active `src/posterior.py` already applies the prior only once; the new code
-preserves that active behavior. The historical alternatives are not treated as
-requirements to reproduce bugs. Site-specific Slurm partition preferences,
-VEGAS experiments, multiprocessing benchmarks, duplicate ROC/panel layouts and
-hard-coded configuration-number analysis are not copied into the generic core.
-The optional legacy `quadratic` sample-scaling shorthand is also not a hidden
-rule: express actual desired sample sizes or atomic problem/data configurations
-explicitly in the settings file.
+exactly class-balanced and therefore requires an even row count. The classifier
+returns logits, is trained with BCE-with-logits, and inference uses those logits
+directly as log ratios. This avoids potentially saturated sigmoid odds. Epoch loss
+is sample-weighted. A fixed seed does not promise identical weights across
+devices, world sizes, or dependency versions.
 
 ## Mathematical clarification: ratio, likelihood shape and posterior
 
@@ -161,8 +135,7 @@ Each is normalized using the declared candidate measure. The posterior includes
 one prior factor, not `prior(theta)**m`. Here the posterior prior is the configured
 training prior; a separately chosen inference prior can be implemented as a
 custom product. The paper's ratio metrics do not acquire a prior factor.
-All internal logarithms are natural logarithms; the old `r10` terminology means
-ratio for theta-one over theta-zero, not a base-10 logarithm.
+All internal logarithms are natural logarithms.
 
 ## HLD, coverage, bias and finite numerical resolution
 
@@ -179,21 +152,21 @@ sets can have gaps within the reported projection bounds, as in the extrema-base
 definition in the paper's equation (7). Therefore the output distinguishes:
 
 - `coverage.projected_mean`: true coordinate inside the projected bounds, averaged
-  across cases and inferred coordinates, matching the active code's convention;
+  across cases and inferred coordinates;
 - `coverage.joint_density`: the truth's evaluated joint density exceeds the
   numerical HLD threshold, averaged across cases.
 
 The paper's prose description of coverage refers to estimated values, whereas
-its operational comparison and active code use the true parameter. This package
-explicitly uses **true-parameter membership**. Checking whether the maximizer lies
-in a region defined around that maximizer would not be a useful coverage test.
-One random ensemble at each of 25 truth points gives only 25 empirical 1D cases;
-it does not establish precise frequentist coverage at every fixed parameter.
+its operational comparison uses the true parameter. This package explicitly uses
+**true-parameter membership**. Checking whether the maximizer lies in a region
+defined around that maximizer would not be a useful coverage test. One random
+ensemble at each of 25 truth points gives only 25 empirical 1D cases; it does not
+establish precise frequentist coverage at every fixed parameter.
 
 Both signed bias (equations (5)/(8)) and mean absolute bias (figure 3's label) are
 saved, avoiding confusion between absolute mean signed bias and mean absolute
-error. The new figures do not call an HLD width a standard error on a cross-case
-mean bias.
+error. The figures do not present an HLD width as a standard error on a
+cross-case mean bias.
 
 `exact_reference` evaluates the analytic Gaussian likelihood **on the same finite
 candidate approximation**. Its difference from the learned estimate diagnoses

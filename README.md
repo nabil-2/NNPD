@@ -1,8 +1,8 @@
 # NNPD — a small, modular experiment framework
 
-This is a fresh implementation of the supplied Gaussian neural-prior-dependence
-study, not a wrapper around its notebook globals or numbered output directories.
-The reusable framework does not import the Gaussian application or `settings.py`.
+NNPD implements the Gaussian study of *Prior Dependence in Neural Ratio
+Estimation* on top of a small, reusable experiment framework. The framework
+does not import the Gaussian application or `settings.py`.
 
 **Start with `settings.py`, `gaussian/experiment.py`, and `gaussian/hooks.py`.**
 They respectively define the experiment choices, the scientific/training
@@ -32,9 +32,9 @@ a large run. `nnpd` is the equivalent installed command.
 For scientific settings:
 
 ```bash
-python run.py plan --profile legacy
-python run.py train --profile legacy
-python run.py analyze --profile legacy
+python run.py plan --profile default
+python run.py train --profile default
+python run.py analyze --profile default
 ```
 
 `run` does training and analysis. `train` stops after committed checkpoints.
@@ -44,19 +44,19 @@ not mistaken for a valid checkpoint.
 
 **Read the plan before running the full study.** The literal paper grid contains
 `25**d` truth points. Candidate evaluation and storage guards can reject the full
-high-dimensional plan before allocation. The `legacy` profile retains the current
-CLI's explicit auto grid/Sobol truth-design policy; `paper` does not silently
-replace its exhaustive truth grid. Neither profile automatically reduces the
-requested candidate count to fit a guard.
+high-dimensional plan before allocation. The `default` profile uses an explicit
+auto grid/Sobol truth-design policy; `paper` does not silently replace its
+exhaustive truth grid. Neither profile automatically reduces the requested
+candidate count to fit a guard.
 
 ## All ordinary choices live in one file
 
 `settings.py` contains the complete settings dictionary and the named presets.
 Edit it rather than chasing defaults through implementation files. The presets
-are `legacy`, `paper`, `smoke`, `mixed`, `extended`, and `smoke_ddp`.
-`legacy` follows the active old Python entry point, subject to the documented
-engineering changes. `paper` makes the paper-facing choices explicit; it is not
-a claim of bitwise or figure-for-figure reproduction.
+are `default`, `paper`, `smoke`, `mixed`, `extended`, and `smoke_ddp`.
+`default` is the full study exactly as defined in `SETTINGS`. `paper` makes the
+paper-facing choices explicit; it is not a claim of bitwise or figure-for-figure
+reproduction.
 
 ### Sweeps: baseline plus one changed knob
 
@@ -150,7 +150,7 @@ gaussian/
   extensions.py            Working custom metric/model metric/plot example
 notebooks/                 Three thin executable notebooks; no function definitions
 tests/                     Unit, science, integration, notebook and distributed tests
-validation/                Executed validation evidence and rerun script
+validation/                Reference-run script
 ```
 
 An `Experiment` supplies the problem, prior, data sampler, model builder and
@@ -219,15 +219,15 @@ CUDA_VISIBLE_DEVICES=0,1 torchrun --standalone --nproc_per_node=2 run.py run --p
 
 Use one worker per visible GPU and homogeneous GPU types within a DDP group.
 CPU distributed runs use Gloo; CUDA DDP uses NCCL. Multi-node launch requires
-correct torchrun rendezvous settings and a shared output filesystem; it was not
-validated here. DDP analysis is deliberately not sharded within a model.
+correct torchrun rendezvous settings and a shared output filesystem; it is not
+covered by the tests. DDP analysis is deliberately not sharded within a model.
 `float16` AMP requires CUDA; `bfloat16` is also supported on capable CPUs/GPUs.
 A stochastic model or different numerical backend need not reproduce identical
 weights across world sizes.
 
-**Validation here used CPU-only PyTorch.** Two-process Gloo DDP and independent
-jobs were executed; physical single-/multi-GPU tests are included but were skipped.
-See [TEST_REPORT.md](TEST_REPORT.md) for the exact environment and results.
+The distributed tests run two-process Gloo DDP and independent jobs on CPU.
+Single- and multi-GPU tests are included; they run only where CUDA hardware is
+available. See [Testing and validation](docs/guide/testing.md).
 
 ## Outputs, correctness and scope
 
@@ -244,13 +244,12 @@ analytic-likelihood references, pairwise log-ratio errors, sliced Wasserstein
 reweighting and evidence-normalization checks are separate metrics. Raw inference
 scores can be kept for a few diagnostic cases or for every case.
 
-The paper and old repository do not define one identical configuration. The
-exponential sign, truth-design settings, discrete integration measure, and older
-notebook posterior computations need explicit interpretation. Read
-[Scientific and migration notes](docs/SCIENTIFIC_NOTES.md) before comparing results.
-Historical exploratory gamma/sinusoidal priors, every old publication panel and
-site-specific Slurm policy are not copied verbatim; they belong in optional
-application hooks, not the framework.
+Several choices need explicit interpretation: the exponential sign (the `default`
+and `paper` presets differ), the normal-prior scale, the truth design and the
+discrete integration measure. Read the [Scientific notes](docs/SCIENTIFIC_NOTES.md)
+before comparing results with the paper.
+Additional priors, publication-specific panels and scheduler-specific launch
+policy belong in optional application hooks, not the framework.
 
 ## Tests
 
@@ -266,4 +265,6 @@ prior sampling, arbitrary parameter layouts, both networks, shared caching,
 corruption detection, interrupted-stage recovery, safe reload/relocation,
 independent non-Gaussian framework use, notebook execution and real distributed
 processes. They are evidence for the tested implementation—not a guarantee of
-scientific convergence for arbitrary high-dimensional configurations.
+scientific convergence for arbitrary high-dimensional configurations. See
+[Testing and validation](docs/guide/testing.md) for coverage details and the
+larger reference runs.

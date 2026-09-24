@@ -12,11 +12,8 @@ application, or require a GPU.
 
 ## Publish on GitHub
 
-1. Extract the archive and push the **contents of `nnpd_clean/`** into your
-   repository root. Include the hidden `.github` directory. You should see
-   `settings.py`, `docs/`, and `.github/workflows/docs.yml` at that root, not inside
-   an additional `nnpd_clean` subdirectory. Uploading the ZIP file alone will not
-   activate the website.
+1. Make sure the repository root contains `settings.py`, `docs/`, and the hidden
+   `.github/workflows/docs.yml`. GitHub only runs workflows from that location.
 2. In the repository, open **Settings → Pages**. Under **Build and deployment**,
    set **Source** to **GitHub Actions**.
 3. Open **Actions → Documentation → Run workflow**, choose the branch to publish
@@ -41,9 +38,9 @@ or organization policies can also restrict Actions and deployments. A repository
 administrator must allow the required actions and Pages environment.
 
 ```{note}
-No deployment is performed by extracting this ZIP, and none happens on a push.
-The workflow needs your repository, its Pages setting, and a manual run. Local
-validation is not evidence of a live GitHub deployment.
+No deployment happens on a push. The workflow needs the repository's Pages
+setting and a manual run. A successful local build is not evidence of a live
+GitHub deployment.
 ```
 
 ## What the workflow does
@@ -66,13 +63,13 @@ manual run to rehearse a publish without changing the live site.
 
 The separate deployment job runs only for a manual dispatch that asked to deploy.
 It has the required `pages: write` and `id-token: write` permissions and uses the
-`github-pages` environment. No personal access token is needed by the supplied
+`github-pages` environment. No personal access token is needed by the
 workflow. Because the branch is chosen at dispatch time, the website can be
 published from a branch other than `main` when that is what you want.
 
 The workflow uploads only the built HTML directory, not arbitrary training
-outputs. The website deliberately contains the existing documentation, selected
-validation plots, and downloadable notebooks. Review documentation content before
+outputs. The website deliberately contains the documentation and downloadable
+notebooks. Review documentation content before
 publishing; a private code repository does not by itself imply a private website.
 
 ## Build and preview locally
@@ -109,8 +106,7 @@ have been installed. Package installation itself requires package-index access.
 | `docs/index.md` | Landing page and navigation tree. |
 | `docs/guide/` | Task-oriented usage guides. |
 | `docs/reference/` | Settings, CLI, and API entry pages. |
-| Existing `docs/EXTENDING.md`, `STORAGE.md`, `SCIENTIFIC_NOTES.md` | Original detailed guides; included directly. |
-| `docs/TEST_REPORT.md` | Includes the unchanged root application test report. |
+| `docs/EXTENDING.md`, `STORAGE.md`, `SCIENTIFIC_NOTES.md` | Detailed extension, storage, and scientific guides. |
 | `docs/conf.py` | Sphinx/MyST/AutoAPI/Furo configuration; documentation only. |
 | `docs/requirements.txt` | Separate documentation dependencies. |
 | `docs/_static/nnpd.css` | Small responsive presentation overrides; no font files. |
@@ -138,6 +134,5 @@ implementation:
 - [Furo: theme setup](https://pradyunsg.me/furo/quickstart/)
 - [AutoAPI: source-based Python documentation](https://sphinx-autoapi.readthedocs.io/en/latest/)
 
-See the [documentation validation report](DOCS_TEST_REPORT.md) for what was
-actually checked for this archive, separately from the original application's
-scientific/software tests.
+See [Testing and validation](guide/testing.md) for the documentation checks and the
+application test suite.

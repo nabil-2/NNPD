@@ -72,9 +72,9 @@ Typical sharing in the Gaussian study:
 
 Selectors are intentionally conservative in places. For example, changing an
 unrelated field within `verification` may rebuild several verification products.
-The inferred HLD summaries and retained scores are currently one product: changing
-levels rebuilds inference rather than providing a separate automatic offline
-threshold-recomputation engine. This is a simplicity/storage tradeoff. A custom
+The inferred HLD summaries and retained scores are one product: changing levels
+rebuilds inference rather than recomputing thresholds from previously retained
+scores. This is a simplicity/storage tradeoff. A custom
 raw-score product can separate those operations for a more specialized workflow.
 
 Different output roots do not share a global cache automatically. Use the same
@@ -161,9 +161,9 @@ an output root is relocated.
 Arrays are loaded with `allow_pickle=False`; checkpoints use
 `torch.load(..., weights_only=True)`. Settings and application modules are trusted
 Python code and execute normally; they are not sandboxed. These protections do
-not make an arbitrary malicious download safe. No legacy pickle is loaded by the
-new framework, and source snapshots do not include the uploaded paper or old code.
+not make an arbitrary malicious download safe. Arbitrary pickled objects are
+never loaded.
 
 Cache cleaning is manual: keep the root intact for portable provenance or delete
-an unused root once no processes are using it. There is no hidden cache eviction,
-old-format migration or remote object-store backend.
+an unused root once no processes are using it. There is no hidden cache eviction
+or remote object-store backend.
