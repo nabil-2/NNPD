@@ -26,7 +26,7 @@ def test_sobol_truths_mixed_prior_support_and_zero_diagnostic_retention(tiny):
     tiny["verification"].update(pair_design="sobol", normalization_design="prior")
     context = restore(execute(tiny, GaussianExperiment())[0], GaussianExperiment())
     observations = context.require("observations")
-    assert observations.array("truth").shape == (10, 3)
+    assert observations.array("truth").shape == (5 * 2 ** 2 * 2, 3)  # 5 truths at p=1, doubled twice for p=3; 2 repeats
     np.testing.assert_allclose(observations.array("truth")[::2], observations.array("truth")[1::2])
     assert not np.array_equal(observations.array("observations")[0], observations.array("observations")[1])
     candidates = context.require("candidates")

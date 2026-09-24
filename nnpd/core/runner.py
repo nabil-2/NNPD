@@ -15,7 +15,7 @@ import numpy as np
 import torch
 
 from .api import Context, Experiment, implementation_hash
-from .config import digest, expand_sweep
+from .config import at, digest, expand_sweep
 from .runtime import Runtime, seed_all
 from .storage import Artifact, Store, file_hash, safe_name, utc_now, write_json
 
@@ -86,6 +86,26 @@ def plan(config: dict, experiment: Experiment) -> list[Job]:
         for member in members:
             jobs.append(Job(cfg, member, variant.changed, experiment.estimate(cfg, member)))
     return jobs
+
+
+def infeasible(jobs: list[Job]) -> dict[str, list[str]]:
+    """Configurations whose analysis would exceed the configured limits, with the reasons."""
+    found: dict[str, list[str]] = {}
+    for job in jobs:
+        if job.workload.get("errors"):
+            label = f"{job.changed}={at(job.config, job.changed)!r}" if job.changed else "baseline"
+            reasons = found.setdefault(label, [])
+            reasons.extend(error for error in job.workload["errors"] if error not in reasons)
+    return found
+
+
+def check_feasible(jobs: list[Job]) -> None:
+    """Refuse the whole launch before anything is computed if any configuration cannot be analyzed."""
+    problems = infeasible(jobs)
+    if problems:
+        details = "\n".join(f"  {label}: {'; '.join(reasons)}" for label, reasons in problems.items())
+        raise ValueError(f"Analysis is not feasible for these configurations; nothing was computed. "
+                         f"Change the named settings:\n{details}")
 
 
 def _json_value(value):
@@ -216,10 +236,7 @@ def execute(config: dict, experiment: Experiment, *, stage: str = "run", setting
     if stage not in {"train", "run", "analyze"}:
         raise ValueError("stage must be train, run, or analyze.")
     jobs = plan(config, experiment)
-    if stage != "train":
-        excessive = [(job.id, job.workload["errors"]) for job in jobs if job.workload.get("errors")]
-        if excessive:
-            raise ValueError(f"Workload exceeds configured guards: {excessive}. Edit settings explicitly.")
+    check_feasible(jobs)  # also for 'train': never train models whose analysis would be refused
     runtime_config = jobs[0].config["runtime"]
     if any(job.config["runtime"] != runtime_config for job in jobs):
         raise ValueError("Runtime settings cannot vary within one launch; use separate launches.")

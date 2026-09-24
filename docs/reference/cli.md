@@ -19,9 +19,10 @@ public execution functions. Run `python run.py --help` for the parser's help tex
 | `analyze` | Require matching training/model artifacts; run analysis without implicit training. |
 | `verify` | Deep-check committed artifacts in the planned output roots. |
 
-`plan` can report guard errors in a workload without exiting unsuccessfully.
-`run` and `analyze` reject workloads exceeding configured guards. `train` does not
-allocate inference products and does not enforce those inference guards.
+Every action except `verify` first checks that each configuration's analysis
+fits the limits in `settings.py`. If one does not, `plan` prints the plan and
+exits with an error, and `train`, `run` and `analyze` refuse to start before
+computing anything.
 
 ## Options
 

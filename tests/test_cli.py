@@ -24,6 +24,21 @@ def test_cli_plan_is_safe_and_has_no_output_side_effects(tmp_path, tiny, capsys)
     assert not Path(tiny["output"]).exists()
 
 
+def test_cli_plan_reports_infeasible_analysis_and_exits_with_error(tmp_path, tiny, capsys):
+    tiny["inference"]["max_model_evaluations"] = 1
+    path = write_settings(tiny, tmp_path)
+    with pytest.raises(SystemExit, match="(?s)not feasible.*baseline.*max_model_evaluations"):
+        main(["--config", str(path)])
+    assert json.loads(capsys.readouterr().out)["jobs"][0]["workload"]["errors"]
+    assert not Path(tiny["output"]).exists()
+
+
+def test_unknown_truth_design_is_rejected(tmp_path, tiny):
+    tiny["inference"]["truth_design"] = "auto"
+    with pytest.raises(ValueError, match="sobol, grid, or size_adaptive"):
+        main(["--config", str(write_settings(tiny, tmp_path))])
+
+
 def test_cli_train_analyze_verify_and_application_override(tiny, tmp_path, capsys):
     tiny["metrics"] += ["median_absolute_bias", "parameter_count"]
     tiny["plots"] = ["observation_histogram", "inference"]

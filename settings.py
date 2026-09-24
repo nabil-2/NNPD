@@ -58,9 +58,10 @@ SETTINGS = {
         "seed": 2026,
         "observations": 15,         # one common theta for these independent observations
         "repeats": 1,               # independently repeated observation ensembles per truth
-        "truth_design": "auto",    # grid, sobol, auto; auto rule is recorded in metadata
-        "truth_points_per_axis": 25, "truth_margin_fraction": 0.1,
-        "max_grid_truths": 1_000_000, "sobol_truths": 65_536,
+        "truth_design": "sobol",   # sobol; grid: truth_points_per_axis**p; size_adaptive: grid up to max_grid_truths, else sobol
+        "sobol_truths": 1_024,      # Sobol truths at p=1 inferred parameter; doubles with each additional one
+        "truth_points_per_axis": 25, "max_grid_truths": 1_000_000,  # grid and size_adaptive only
+        "truth_margin_fraction": 0.1,
         "align_truths_to_grid": True,
         "candidate_design": "sobol",  # sobol or grid (grid can become enormous)
         "candidate_count": 16_384,
@@ -70,6 +71,7 @@ SETTINGS = {
         "targets": ["ratio", "posterior", "exact"],
         "retain": "diagnostic",    # diagnostic: a few cases; full: all candidate scores
         "diagnostic_cases": 3,
+        # Analysis limits: train/run/analyze refuse up front if any configuration exceeds them.
         "max_model_evaluations": 2_000_000_000_000,
         "max_saved_bytes": 8_000_000_000,
         "max_candidate_points": 2_000_000,
@@ -106,7 +108,7 @@ def make_config(profile: str = DEFAULT_PROFILE) -> dict:
         cfg["problem"]["parameters"]["mean"]["exponential_rate"] = -0.1
         cfg["inference"]["truth_margin_fraction"] = 0.0
         cfg["inference"]["align_truths_to_grid"] = False
-        cfg["inference"]["truth_design"] = "grid"  # no silent replacement of 25**d truths
+        cfg["inference"]["truth_design"] = "size_adaptive"  # exact 25**p grid while feasible (p <= 4)
         cfg["inference"]["targets"] = ["ratio", "exact"]
         cfg["inference"]["native_grid_prior"] = False  # continuous domain in paper Eq. 4
     if profile == "smoke":

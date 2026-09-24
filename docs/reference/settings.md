@@ -21,6 +21,9 @@ it or execute `make_config`.
 | `plotting` | Figure resolution, histogram sizes, prior samples, and displayed inference cases. |
 | `runtime` | CPU/CUDA selection, independent jobs versus DDP, CPU threads, determinism, process-group timeout. |
 
+`inference.truth_design` is `sobol` (default), `grid` or `size_adaptive`; see
+[Truth design](../guide/configuration.md#truth-design). The `max_*` inference
+settings are the analysis limits checked before anything is computed.
 `training.batch_size` is global even under DDP. HLD `levels` are **enclosed
 masses**, not tail probabilities. `inference.retain="diagnostic"` keeps score
 rows for a subset while preserving per-case summaries; `"full"` retains all

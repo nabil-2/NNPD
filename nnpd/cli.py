@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from .core.config import load_settings, at
-from .core.runner import execute, plan, verify_store
+from .core.runner import check_feasible, execute, plan, verify_store
 from .core.api import load_experiment
 
 
@@ -28,6 +28,10 @@ def main(argv=None):
                                     "workload": job.workload} for job in jobs],
                           "total_models": len(jobs),
                           "sweep_rule": "baseline plus one changed knob; fixed cohort per configuration"}, indent=2))
+        try:
+            check_feasible(jobs)
+        except ValueError as error:
+            raise SystemExit(str(error)) from None
     elif args.action == "verify":
         roots = sorted({job.config["output"] for job in plan(config, experiment)})
         for root in roots:

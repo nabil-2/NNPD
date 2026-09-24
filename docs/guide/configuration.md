@@ -104,3 +104,28 @@ backend availability is checked when the runtime is created.
 
 A useful workflow is: edit the settings, print the plan, inspect every workload's
 warnings/errors, and only then execute the desired stage.
+
+## Truth design
+
+The truth points are the true parameter values at which inference is evaluated.
+`inference.truth_design` chooses how they are placed; `p` is the number of
+inferred parameters:
+
+| Value | Truths |
+|---|---|
+| `"sobol"` (default) | `sobol_truths × 2**(p-1)` Sobol points: 1,024 at `p = 1`, doubling per additional parameter. |
+| `"grid"` | The exhaustive `truth_points_per_axis**p` grid. It grows exponentially with `p`. |
+| `"size_adaptive"` | The grid while it has at most `max_grid_truths` points, otherwise the Sobol design. |
+
+The `paper` preset uses `size_adaptive`: the exact 25-point-per-axis grid for
+`p ≤ 4` and Sobol truths above. The plan reports the design actually used.
+
+## Analysis must be feasible before anything is computed
+
+The analysis cost of every configuration is estimated from its settings before
+anything is sampled or trained. `max_model_evaluations`, `max_saved_bytes` and
+`max_candidate_points` in `inference` set the limits. If any configuration of the
+sweep exceeds them, `train`, `run` and `analyze` refuse the whole launch, and
+`plan` prints the plan and then exits with an error. The error names each
+infeasible configuration and the settings to reduce. Nothing is reduced
+automatically, so no model is trained that could not also be analyzed.

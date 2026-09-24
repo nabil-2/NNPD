@@ -5,12 +5,14 @@
 That is intentional: `python run.py` uses the `plan` action. Use
 `python run.py run --profile smoke` for a small end-to-end run.
 
-## The plan printed successfully but execution rejects it
+## "Analysis is not feasible for these configurations"
 
-Inspect each workload's `errors` and `warnings`. The planning API reports
-inference guards; `run` and `analyze` enforce them. Explicitly reduce the relevant
-candidate/truth/retention settings or allocate adequate resources. The code does
-not silently reduce an exhaustive paper grid to fit a guard.
+A configuration's estimated analysis exceeds `max_model_evaluations`,
+`max_saved_bytes` or `max_candidate_points`. Nothing was computed. The message
+names each configuration and the settings to reduce: typically the truths
+(`truth_design`, `sobol_truths`, `truth_points_per_axis`), `repeats`,
+`observations` or `candidate_count`. Raise a limit only if the hardware can
+afford it. Nothing is reduced automatically.
 
 ## Analysis says no matching checkpoint exists
 

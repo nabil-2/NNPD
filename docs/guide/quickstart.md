@@ -29,9 +29,10 @@ The JSON plan reports each cohort member, the setting changed from baseline,
 network input size, and estimated inference work. This preset plans four models:
 one per prior, at one baseline configuration and one training replica.
 
-The workload's `errors` and `warnings` are meaningful even when the plan command
-returns successfully. In particular, inference guards are reported in the plan;
-`run` and `analyze` enforce them before allocating those products.
+Read the workload's `warnings`. If a configuration's analysis would exceed the
+limits in `settings.py`, `plan` lists it and exits with an error, and `train`,
+`run` and `analyze` refuse to start. See
+[the feasibility check](configuration.md#analysis-must-be-feasible-before-anything-is-computed).
 
 ## Train and analyze
 

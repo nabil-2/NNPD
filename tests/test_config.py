@@ -67,10 +67,15 @@ def test_default_configuration_is_explicit():
     assert base["model"]["hidden"] == [64] * 4
     assert base["training"]["epochs"] == 5
     assert base["inference"]["observations"] == 15
-    assert jobs[-1].workload["truth_design"] == "sobol"
+    # Sobol truths by default: 1,024 at one inferred parameter, doubling per additional one.
+    assert [jobs[i].workload["inference_cases"] for i in range(0, 24, 4)] == [1024 * 2 ** k for k in range(6)]
+    assert {job.workload["truth_design"] for job in jobs} == {"sobol"}
     paper = plan(make_config("paper"), GaussianExperiment())
-    assert paper[-1].workload["inference_cases"] == 25 ** 6
-    assert paper[-1].workload["errors"]  # refuses the huge literal analysis allocation
+    # size_adaptive: the exact 25**p grid while it fits max_grid_truths, Sobol above.
+    assert [job.workload["truth_design"] for job in paper[::4]] == ["grid"] * 4 + ["sobol"] * 2
+    assert paper[12].workload["inference_cases"] == 25 ** 4
+    assert paper[-1].workload["inference_cases"] == 1024 * 2 ** 5
+    assert not any(job.workload["errors"] for job in [*jobs, *paper])  # every dimension can be analyzed
     assert paper[0].config["problem"]["parameters"]["mean"]["exponential_rate"] == -0.1
     assert base["problem"]["parameters"]["mean"]["exponential_rate"] == 0.1
 

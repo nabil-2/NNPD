@@ -42,9 +42,9 @@ package do not establish it anew.
 | Optimizer | `training.optimizer`, `learning_rate` | Adam, `0.001` |
 | Training | `training.epochs`, `batch_size`, `cohort.replicas` | 5 epochs, batch 128, one model per prior |
 | Ensemble size | `inference.observations` | 15 |
-| Truth count | `truth_points_per_axis` | 25 per axis |
+| Truth design | `truth_design`, `sobol_truths` | `sobol`: 1,024 truths at `p = 1`, doubling per additional inferred parameter |
+| Paper truth grid | `truth_points_per_axis`, `max_grid_truths` | 25 per axis; `paper` uses it while `25**p ≤ 1,000,000` (`size_adaptive`) |
 | Truth margin | `truth_margin_fraction` | `0.1` of the domain width, hence `[1,9]` for means |
-| Large truth designs | `truth_design`, `max_grid_truths`, `sobol_truths` | `auto`: a grid up to 1,000,000 truths, otherwise 65,536 Sobol truths |
 | Candidate approximation | `candidate_count`, `inference.seed` | 16,384 Sobol candidates, QMC seed 2026 |
 | Nominal region masses | `levels` | `[0.68, 0.95]`, enclosed masses rather than tail probabilities |
 | Pairwise verification | `verification.pairs`, `samples_per_endpoint` | 256 pairs, 512 samples per endpoint |
@@ -86,6 +86,13 @@ not constrained by training at every off-lattice theta. Comparisons using counti
 versus Lebesgue measure are therefore not interchangeable. Set
 `native_grid_prior=False` with ratio/exact targets to use common continuous
 candidate measure across priors; a discrete posterior requires native support.
+
+**Truth design.** The paper's exhaustive 25-point-per-axis grid has `25**p`
+points. At `p = 5` and `6` its analysis needs about `2.4·10¹²` and `6·10¹³` model
+evaluations, beyond the default analysis limits.
+The `default` preset therefore uses Sobol truths, whose number grows only by a
+factor of two per inferred parameter. `paper` keeps the exact grid where it is
+feasible (`p ≤ 4`) and switches to Sobol truths above.
 
 **Truth points and repeats.** `align_truths_to_grid` snaps continuous truth
 coordinates to the nearest eligible lattice points of each parameter's
@@ -159,9 +166,10 @@ definition in the paper's equation (7). Therefore the output distinguishes:
 The paper's prose description of coverage refers to estimated values, whereas
 its operational comparison uses the true parameter. This package explicitly uses
 **true-parameter membership**. Checking whether the maximizer lies in a region
-defined around that maximizer would not be a useful coverage test. One random
-ensemble at each of 25 truth points gives only 25 empirical 1D cases; it does not
-establish precise frequentist coverage at every fixed parameter.
+defined around that maximizer would not be a useful coverage test. Averaged
+coverage over 1,024 truths has a standard error of at most 1.6 percentage
+points; it does not establish precise frequentist coverage at every fixed
+parameter.
 
 Both signed bias (equations (5)/(8)) and mean absolute bias (figure 3's label) are
 saved, avoiding confusion between absolute mean signed bias and mean absolute

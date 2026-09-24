@@ -207,11 +207,13 @@ def test_plots_and_result_readers(tiny, tmp_path):
     plt.close(fig)
 
 
-def test_guard_refuses_large_work_without_shrinking_science(tiny):
-    tiny["inference"]["max_model_evaluations"] = 1
-    with pytest.raises(ValueError, match="guards"):
-        execute(tiny, GaussianExperiment())
-    assert not Path(tiny["output"]).exists()
+@pytest.mark.parametrize("stage", ["train", "run", "analyze"])
+def test_infeasible_analysis_refuses_every_stage_before_computing(tiny, stage):
+    tiny["problem"]["dimension"] = Choice([1, 2])
+    tiny["inference"].update(truth_design="grid", truth_points_per_axis=40, max_model_evaluations=1_000_000)
+    with pytest.raises(ValueError, match=r"not feasible[\s\S]*problem\.dimension=2: .*max_model_evaluations"):
+        execute(tiny, GaussianExperiment(), stage=stage)
+    assert not Path(tiny["output"]).exists()  # nothing trained, including dimension 1
 
 
 class IndependentExample(Experiment):

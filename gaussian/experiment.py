@@ -121,8 +121,10 @@ class GaussianExperiment(Experiment):
         _finite(cfg["truth_margin_fraction"], "inference.truth_margin_fraction", 0)
         if cfg["truth_margin_fraction"] > 0.5:
             raise ValueError("truth_margin_fraction removes the parameter domain.")
-        if cfg["truth_design"] not in {"auto", "grid", "sobol"} or cfg["candidate_design"] not in {"grid", "sobol"}:
-            raise ValueError("Unknown inference design.")
+        if cfg["truth_design"] not in {"sobol", "grid", "size_adaptive"}:
+            raise ValueError("inference.truth_design must be sobol, grid, or size_adaptive.")
+        if cfg["candidate_design"] not in {"grid", "sobol"}:
+            raise ValueError("inference.candidate_design must be grid or sobol.")
         if not cfg["targets"] or len(set(cfg["targets"])) != len(cfg["targets"]) or set(cfg["targets"]) - {"ratio", "posterior", "exact"}:
             raise ValueError("Select unique targets from ratio, posterior, exact.")
         ratio_metrics = {"bias", "coverage", "width", "resolution", "exact_reference"}
@@ -191,15 +193,20 @@ class GaussianExperiment(Experiment):
                       candidate_count_upper_bound=count, inference_model_evaluations=evaluations,
                       estimated_inference_bytes=saved_bytes)
         if count > cfg["max_candidate_points"]:
-            errors.append("candidate_count exceeds max_candidate_points")
+            errors.append(f"{count:,} candidates exceed max_candidate_points ({cfg['max_candidate_points']:,}); "
+                          "reduce candidate_count or candidate_points_per_axis")
         if evaluations > cfg["max_model_evaluations"]:
-            errors.append("inference evaluations exceed max_model_evaluations")
+            errors.append(f"{evaluations:,} inference model evaluations exceed max_model_evaluations "
+                          f"({cfg['max_model_evaluations']:,}); reduce the truths ({design} design), "
+                          "repeats, observations or candidate_count")
         if saved_bytes > cfg["max_saved_bytes"]:
-            errors.append("inference/observation storage estimate exceeds max_saved_bytes")
+            errors.append(f"{saved_bytes:,} saved inference bytes exceed max_saved_bytes ({cfg['max_saved_bytes']:,}); "
+                          "reduce the truths, repeats, observations or retained scores")
         if any(axis is not None for axis in prior.support_axes) and not cfg["native_grid_prior"] and "posterior" in cfg["targets"]:
             errors.append("a discrete posterior needs native_grid_prior=True")
-        if config["inference"]["truth_design"] == "auto" and design == "sobol":
-            warnings.append(f"Explicit auto rule selects {truths} Sobol truths, NOT 25**d exhaustive truths")
+        if cfg["truth_design"] == "size_adaptive" and design == "sobol":
+            warnings.append(f"size_adaptive selects {truths} Sobol truths because the "
+                            f"{cfg['truth_points_per_axis']}**{p} grid exceeds max_grid_truths")
         if cfg["align_truths_to_grid"]:
             warnings.append("Truths explicitly snapped to each parameter's grid_step; duplicates are retained and reported")
         if count < 100 ** p:

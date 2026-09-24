@@ -42,12 +42,13 @@ python run.py analyze --profile default
 Rerunning reuses completed artifacts. A failed, uncommitted stage is restarted,
 not mistaken for a valid checkpoint.
 
-**Read the plan before running the full study.** The literal paper grid contains
-`25**d` truth points. Candidate evaluation and storage guards can reject the full
-high-dimensional plan before allocation. The `default` profile uses an explicit
-auto grid/Sobol truth-design policy; `paper` does not silently replace its
-exhaustive truth grid. Neither profile automatically reduces the requested
-candidate count to fit a guard.
+**Read the plan before running the full study.** Every configuration's analysis
+cost is checked against the limits in `settings.py` before anything is computed.
+If any configuration exceeds them, `train`, `run` and `analyze` refuse to start
+and name the settings to reduce; nothing is reduced automatically. Truth points
+are Sobol points by default (1,024 at one inferred parameter, doubling per
+additional one). `paper` uses `size_adaptive`: the exact `25**p` grid while it is
+small enough, Sobol above. See [Truth design](docs/guide/configuration.md#truth-design).
 
 ## All ordinary choices live in one file
 

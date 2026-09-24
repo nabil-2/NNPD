@@ -47,12 +47,18 @@ def inference_settings(context):
             "device": context.runtime.device.type}
 
 
+def sobol_truth_count(problem, cfg):
+    """sobol_truths at one inferred parameter, doubling with each additional parameter."""
+    return cfg["sobol_truths"] * 2 ** (len(problem.parameters) - 1)
+
+
 def truth_layout(problem, cfg):
-    size = cfg["truth_points_per_axis"] ** len(problem.parameters)
+    """Return the actual truth design and count; size_adaptive switches to Sobol above max_grid_truths."""
+    grid = cfg["truth_points_per_axis"] ** len(problem.parameters)
     design = cfg["truth_design"]
-    if design == "auto":
-        design = "grid" if size <= cfg["max_grid_truths"] else "sobol"
-    return design, size if design == "grid" else cfg["sobol_truths"]
+    if design == "size_adaptive":
+        design = "grid" if grid <= cfg["max_grid_truths"] else "sobol"
+    return design, grid if design == "grid" else sobol_truth_count(problem, cfg)
 
 
 def inference_observations(context, dependencies, writer):
