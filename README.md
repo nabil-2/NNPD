@@ -8,6 +8,9 @@ The reusable framework does not import the Gaussian application or `settings.py`
 They respectively define the experiment choices, the scientific/training
 implementation, and the datasets/metrics/plots to expose.
 
+Full documentation — the usage guides, the settings and CLI reference, and the
+generated Python API — is published at **<https://nabil-2.github.io/NNPD/>**.
+
 ## Run it
 
 Use Python 3.11 or newer. From this directory:
