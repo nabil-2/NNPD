@@ -6,7 +6,7 @@ For a scientific run, replace `smoke` with `default`, `paper`, or your own profi
 
 | Step | Command line | Notebook |
 |---|---|---|
-| 1. Install | `pip install -e ".[dev]"` | — |
+| 1. Install | `uv sync` | — |
 | 2. Choose the settings | edit `settings.py` | — |
 | 3. Check the plan | `python run.py plan --profile smoke` | `01_run` |
 | 4. Train | `python run.py train --profile smoke` | `01_run` |
@@ -19,16 +19,24 @@ repository root, the directory containing `settings.py` and `run.py`.
 
 ## 1. Install
 
-Use Python 3.11 or newer in an isolated environment:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then:
 
 ```bash
-python -m venv .venv
+uv sync
 source .venv/bin/activate        # Windows PowerShell: .venv\Scripts\Activate.ps1
-python -m pip install -e ".[dev]"
 ```
 
-For GPUs, install a CUDA-enabled PyTorch build for your machine first; see the
-[CUDA guide](cuda.md).
+`uv sync` creates `.venv` with Python 3.11 or newer, downloading Python if needed,
+and installs NNPD and the development tools at the versions pinned in `uv.lock`.
+The commands below assume the environment is active. Alternatively, prefix them
+with `uv run`, as in `uv run python run.py plan --profile smoke`.
+
+Without uv, `python -m pip install -e . --group dev` (pip 25.1 or newer) installs
+the same packages into your own environment, but resolves their versions itself
+instead of using `uv.lock`.
+
+On Linux, the PyTorch that `uv sync` installs is a CUDA build. For other GPUs or
+CUDA versions, see the [CUDA guide](cuda.md).
 
 ## 2. Choose the settings
 

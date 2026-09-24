@@ -18,21 +18,22 @@ website build.
 
 ## Local build
 
-Python 3.11 or newer, from this directory:
+With [uv](https://docs.astral.sh/uv/getting-started/installation/) installed, from
+this directory:
 
 ```bash
-python -m venv docs/.venv
-source docs/.venv/bin/activate
-python -m pip install -r docs/requirements.txt
+uv sync --group docs
+source .venv/bin/activate
 python docs/check.py
 python -m sphinx -b html -W --keep-going -E -a docs docs/_build/html
 python docs/check.py --html docs/_build/html
 python -m http.server 8000 --bind 127.0.0.1 --directory docs/_build/html
 ```
 
-Windows PowerShell activation: `docs\.venv\Scripts\Activate.ps1`.
-Open `http://127.0.0.1:8000/`. The website build needs only the separate
-documentation dependencies; it does not need NNPD/PyTorch installed.
+Windows PowerShell activation: `.venv\Scripts\Activate.ps1`.
+Open `http://127.0.0.1:8000/`. The website build needs only the `docs` dependency
+group, which is all the workflow installs (`uv sync --locked --only-group docs`);
+it does not need NNPD or PyTorch.
 
 ## Documentation entry points
 

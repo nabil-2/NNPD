@@ -17,10 +17,14 @@ Edit `runtime.device` in `settings.py`:
 | `"cuda"` | Require CUDA; fail clearly if unavailable. |
 | `"cuda:1"` | Select a single indexed device outside a distributed launch. |
 
-Use a compatible CUDA-enabled PyTorch installation for GPU runs. Hardware and
-package availability do not follow automatically from selecting a configuration
-string. See the official [PyTorch installation selector](https://pytorch.org/get-started/locally/)
-for installation commands rather than using a fixed CUDA wheel URL here.
+Use a compatible CUDA-enabled PyTorch installation for GPU runs. On Linux, the
+PyTorch that `uv sync` installs from PyPI is built for CUDA 13 and needs an NVIDIA
+driver that supports it. For another CUDA version, ROCm, or a CPU-only build,
+point uv at the matching PyTorch index as described in
+[uv's PyTorch guide](https://docs.astral.sh/uv/guides/integration/pytorch/); the
+[PyTorch installation selector](https://pytorch.org/get-started/locally/) lists the
+available builds. Hardware and package availability do not follow automatically
+from selecting a configuration string.
 
 ## Independent jobs on two GPUs
 

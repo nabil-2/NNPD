@@ -2,7 +2,7 @@
 
 The three notebooks are thin entry points, not a separate implementation. Their
 functions live in importable Python modules. Use a kernel from the environment
-where you installed NNPD.
+where you installed NNPD, `.venv` after `uv sync`.
 
 | Notebook | Purpose |
 |---|---|

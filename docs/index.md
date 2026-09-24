@@ -13,7 +13,8 @@ prior, training procedure, metric, or plot, read the
 [extension guide](EXTENDING.md).
 
 ```bash
-python -m pip install -e ".[dev]"
+uv sync
+source .venv/bin/activate
 python run.py plan --profile smoke
 python run.py run --profile smoke
 ```

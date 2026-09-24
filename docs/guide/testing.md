@@ -2,8 +2,9 @@
 
 ## Run the test suite
 
-Install the development dependencies (`python -m pip install -e ".[dev]"`), then
-run from the repository root:
+Install the development dependencies with `uv sync` (see
+[Your first run](quickstart.md#1-install)), then run from the repository root with
+the environment active, or prefix each command with `uv run`:
 
 ```bash
 python -m pytest -q

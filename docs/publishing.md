@@ -45,9 +45,9 @@ GitHub deployment.
 
 ## What the workflow does
 
-The build job installs only `docs/requirements.txt`, validates documentation
-sources, and builds HTML with Sphinx warnings treated as errors. It also checks
-links and fragment targets in the generated local HTML. It runs on three
+The build job installs only the `docs` dependency group from `uv.lock`, not NNPD
+or PyTorch. It validates documentation sources, builds HTML with Sphinx warnings
+treated as errors, and checks links and fragment targets in the generated HTML. It runs on three
 triggers, but only one of them can publish:
 
 | Trigger | Builds | Publishes |
@@ -74,29 +74,31 @@ publishing; a private code repository does not by itself imply a private website
 
 ## Build and preview locally
 
-From the repository root, use Python 3.11 or newer. This environment is separate
-from your experiment environment:
+From the repository root, with [uv](https://docs.astral.sh/uv/getting-started/installation/)
+installed, add the `docs` dependency group to the environment:
 
 ```bash
-python -m venv docs/.venv
-source docs/.venv/bin/activate
-python -m pip install -r docs/requirements.txt
+uv sync --group docs
+source .venv/bin/activate
 python docs/check.py
 python -m sphinx -b html -W --keep-going -E -a docs docs/_build/html
 python docs/check.py --html docs/_build/html
 python -m http.server 8000 --bind 127.0.0.1 --directory docs/_build/html
 ```
 
-On Windows PowerShell, activate with `docs\.venv\Scripts\Activate.ps1` instead.
+On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1` instead.
 Open `http://127.0.0.1:8000/` in a browser and stop the server with Ctrl+C. The
 entry page is `docs/_build/html/index.html`; using the local server also exercises
-search and assets under normal HTTP. Generated pages and the virtual environment
-are ignored by `docs/.gitignore` and should not be committed.
+search and assets under normal HTTP. Generated pages are ignored by
+`docs/.gitignore` and should not be committed. A later plain `uv sync` removes the
+documentation tools from `.venv` again.
 
-No `pip install -e .` is needed for the documentation build. The API reference
-reads source files using AutoAPI rather than importing NNPD or downloading
-PyTorch. A build can be repeated offline once its documentation dependencies
-have been installed. Package installation itself requires package-index access.
+The documentation build itself needs only the `docs` group. The workflow installs
+nothing else, with `uv sync --locked --only-group docs`; do not run that in your
+experiment environment, because it removes NNPD and PyTorch from it. The API
+reference reads source files using AutoAPI rather than importing NNPD or
+downloading PyTorch. A build can be repeated offline once its documentation
+dependencies have been installed. Package installation itself requires package-index access.
 
 ## Edit documentation without changing the application
 
@@ -108,7 +110,7 @@ have been installed. Package installation itself requires package-index access.
 | `docs/reference/` | Settings, CLI, and API entry pages. |
 | `docs/EXTENDING.md`, `STORAGE.md`, `SCIENTIFIC_NOTES.md` | Detailed extension, storage, and scientific guides. |
 | `docs/conf.py` | Sphinx/MyST/AutoAPI/Furo configuration; documentation only. |
-| `docs/requirements.txt` | Separate documentation dependencies. |
+| `docs` group in `pyproject.toml` | Documentation dependencies, pinned in `uv.lock`. |
 | `docs/_static/nnpd.css` | Small responsive presentation overrides; no font files. |
 | `docs/check.py` | Documentation-source and generated-HTML checks. |
 | `.github/workflows/docs.yml` | Build and Pages deployment automation. |

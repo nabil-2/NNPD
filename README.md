@@ -13,16 +13,20 @@ generated Python API — is published at **<https://nabil-2.github.io/NNPD/>**.
 
 ## Run it
 
-Use Python 3.11 or newer. From this directory:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then from
+this directory:
 
 ```bash
-python -m venv .venv
+uv sync
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
-python -m pip install -e '.[dev]'
 python run.py plan --profile smoke
 python run.py run --profile smoke
 python run.py verify --profile smoke
 ```
+
+`uv sync` creates `.venv` with Python 3.11 or newer and installs NNPD and the
+development tools at the versions pinned in `uv.lock`. Instead of activating the
+environment, you can prefix commands with `uv run`.
 
 The smoke profile trains the four prior models and exercises the complete analysis
 with small datasets. It checks the plumbing; it is not a scientific convergence
@@ -195,7 +199,8 @@ run_directories = execute(config, experiment, settings_file="settings.py")
 
 ## CUDA and multiple GPUs
 
-Install a CUDA-enabled PyTorch build appropriate to the machine before running.
+On Linux, the PyTorch that `uv sync` installs is a CUDA build; for other hardware
+see the [CUDA guide](docs/guide/cuda.md).
 `runtime.device="auto"` chooses CUDA when available, otherwise CPU. Explicit
 `"cuda"` fails clearly when CUDA is unavailable; it never silently falls back.
 `"cuda:1"` selects a single device outside a distributed launch.

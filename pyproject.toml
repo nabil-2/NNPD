@@ -9,8 +9,10 @@ description = "Small, modular experiments for neural prior dependence"
 requires-python = ">=3.11"
 dependencies = ["numpy>=1.26", "scipy>=1.11", "torch>=2.4", "matplotlib>=3.8", "filelock>=3.12"]
 
-[project.optional-dependencies]
+[dependency-groups]
+# `uv sync` installs `dev` by default. `docs` builds the website without NNPD or PyTorch.
 dev = ["pytest>=8", "pytest-cov>=5", "nbformat>=5", "nbclient>=0.10", "ipykernel>=6", "ruff>=0.9"]
+docs = ["Sphinx==8.2.3", "myst-parser==4.0.1", "furo==2025.12.19", "sphinx-autoapi==3.8.1"]
 
 [project.scripts]
 nnpd = "nnpd.cli:main"

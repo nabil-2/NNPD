@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_all_notebooks_execute_in_a_clean_copy_and_define_no_functions(tmp_path):
     project = tmp_path / "project"
     shutil.copytree(ROOT, project, ignore=shutil.ignore_patterns("outputs", ".git", ".pytest_cache", "__pycache__",
-                                                               "*.egg-info", "build", "dist"))
+                                                               "*.egg-info", "build", "dist", ".venv"))
     notebooks = sorted((project / "notebooks").glob("*.ipynb"))
     assert len(notebooks) == 3
     model_counts = []
