@@ -1,5 +1,5 @@
 """What is computed from the trained Gaussian models. Changing it never invalidates training."""
-from nnpd import Analysis, Metric, Plot, Product
+from nnpd import Analysis, CohortPlot, Metric, Product
 from nnpd.nre.inference import ensemble_log_ratio, summarize_density
 from nnpd.nre.training import predict_logits
 from nnpd.nre.distributions import IndependentPrior, grid_axis
@@ -53,15 +53,15 @@ class GaussianAnalysis(Analysis):
             "normalization": Metric(mt.normalization, ("normalization_predictions",)),
         }
 
-    def plots(self):
+    def cohort_plots(self):
         return {
-            "training": Plot(pl.training, ("model",)),
-            "prior": Plot(pl.prior),
-            "inference": Plot(pl.inference, ("inference", "observations", "candidates")),
-            "pairwise": Plot(pl.pairwise, ("verification_predictions",)),
-            "reweighting": Plot(pl.reweighting, ("verification_observations", "verification_predictions",
-                                                 "reweighting_distances")),
-            "showcase": Plot(pl.showcase, ("showcase_observations", "showcase_predictions")),
+            "priors": CohortPlot(pl.priors),
+            "training": CohortPlot(pl.training, ("model", "test_predictions")),
+            "posterior_errors": CohortPlot(pl.posterior_errors, ("inference", "observations")),
+            "verifications": CohortPlot(pl.verifications, (
+                "normalization_observations", "normalization_predictions", "showcase_observations",
+                "showcase_predictions", "verification_observations", "verification_predictions",
+                "reweighting_distances")),
         }
 
     def validate(self, settings):
@@ -84,8 +84,10 @@ class GaussianAnalysis(Analysis):
         if not targets or len(set(targets)) != len(targets) or set(targets) - {"ratio", "posterior", "exact"}:
             raise ValueError("Select unique targets from ratio, posterior, exact.")
         ratio_metrics = {"bias", "coverage", "width", "resolution", "exact_reference"}
-        if "ratio" not in targets and (ratio_metrics & set(settings["metrics"]) or "inference" in settings["plots"]):
-            raise ValueError("Selected ratio metrics/plots require the 'ratio' inference target.")
+        if "ratio" not in targets and ratio_metrics & set(settings["metrics"]):
+            raise ValueError("Selected ratio metrics require the 'ratio' inference target.")
+        if "posterior_errors" in settings.get("cohort_plots", []) and not {"ratio", "posterior"} & set(targets):
+            raise ValueError("The posterior_errors plots require the 'ratio' or 'posterior' inference target.")
         if inference["retain"] not in {"diagnostic", "full"}:
             raise ValueError("inference.retain must be diagnostic or full.")
         levels = inference["levels"]
@@ -119,9 +121,9 @@ class GaussianAnalysis(Analysis):
             if name in registry:
                 for dependency in registry[name].needs:
                     visit(dependency)
-        for category in ("metrics", "plots"):
+        for category in ("metrics", "plots", "cohort_plots"):
             hooks = getattr(self, category)()
-            for name in settings[category]:
+            for name in settings.get(category, []):
                 if name in hooks:
                     for dependency in hooks[name].needs:
                         visit(dependency)

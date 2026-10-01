@@ -59,5 +59,5 @@ def tiny(tmp_path):
     analysis["verification"].update(pairs=3, samples_per_endpoint=8, source_samples=16,
                                     target_samples=16, directions=2, marginal_samples=32,
                                     normalization_thetas=2)
-    analysis["plots"] = []
+    analysis["plots"], analysis["cohort_plots"] = [], []
     return Setup(training, analysis, tmp_path / "settings")

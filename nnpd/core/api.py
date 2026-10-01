@@ -64,6 +64,14 @@ class Plot:
     needs: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class CohortPlot:
+    # Figures across the cohort of one configuration, e.g. the priors side by side. draw gets
+    # one context and one dependency mapping per member, in cohort order; return as for Plot.
+    draw: Callable[[list["Context"], list[Mapping[str, Artifact]]], Mapping[str, Any]]
+    needs: tuple[str, ...] = ()
+
+
 class Experiment(ABC):
     """What is trained: problem, prior, training data, model and training procedure.
 
@@ -134,6 +142,9 @@ class Analysis:
         return {}
 
     def plots(self) -> dict[str, Plot]:
+        return {}
+
+    def cohort_plots(self) -> dict[str, CohortPlot]:
         return {}
 
 

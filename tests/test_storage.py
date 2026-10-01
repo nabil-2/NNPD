@@ -87,6 +87,8 @@ class ProductsOnly(GaussianAnalysis):
         return {"unused": Metric(lambda context, dependencies: 0)}
     def plots(self):
         return {}
+    def cohort_plots(self):
+        return {}
 
 
 def context_for(training, analysis, analysis_settings):

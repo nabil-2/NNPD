@@ -2,7 +2,7 @@
 
 ## The smallest useful abstraction
 
-There are two classes, one per settings file, plus three small hook types. The
+There are two classes, one per settings file, plus four small hook types. The
 runner knows about dependencies and files, not Gaussian means, a specific network,
 or metric names.
 
@@ -21,10 +21,11 @@ and cache signatures/source dependencies. A fixed comparison cohort defaults to 
 empty member. The `settings` arguments are the resolved training settings.
 
 **What is computed from the trained models**: subclass `nnpd.Analysis` and override
-`products()`, `metrics()` and `plots()`, which return named `Product`, `Metric` and
-`Plot` registrations. Optional `validate(settings)` checks the analysis settings,
-and `estimate(settings, problem, prior)` returns the analysis workload of one
-model, with limit violations in `"errors"`. An analysis never trains.
+`products()`, `metrics()`, `plots()` and `cohort_plots()`, which return named
+`Product`, `Metric`, `Plot` and `CohortPlot` registrations. Optional
+`validate(settings)` checks the analysis settings, and
+`estimate(settings, problem, prior)` returns the analysis workload of one model,
+with limit violations in `"errors"`. An analysis never trains.
 
 The core framework does not require using the bundled NRE trainer or even using a
 likelihood simulator class. `tests/test_pipeline.py::IndependentExample` and
@@ -37,9 +38,9 @@ in `settings_training.py` and `"analysis": "my_application:MyAnalysis"` in
 `settings_analysis.py`. The classes must have a no-argument constructor;
 scientific choices belong in the settings. The runner itself reads `experiment`,
 `output` and `runtime` from the training settings and `analysis`, `metrics`,
-`plots` and `plotting.dpi` from the analysis settings; all other settings are owned
-by the application. The generic seed helper uses the training `seed` when present,
-otherwise zero.
+`plots` and the optional `cohort_plots` from the analysis settings; all other
+settings are owned by the application. The generic seed helper uses the training
+`seed` when present, otherwise zero.
 
 ## A new simulator or prior
 
@@ -166,10 +167,18 @@ JSON. The runner writes both one JSON per metric and a combined `metrics.json`.
 
 A plot hook receives the same full context and dependency mapping as a metric.
 Return a dictionary of descriptive filename stems to Matplotlib figures. One hook
-can return any number of figures. The runner saves PNGs and closes the figures.
-You can call the hook directly from Python/notebooks and use `figure.savefig(...)`
-for another format or display the figure interactively. Source data, raw scores,
-simulator sampling, prior evaluation and model calls are all available.
+can return any number of figures. The runner saves them as PDFs in the run's
+`plots/<hook>/` folder and closes them. You can call the hook directly from
+Python/notebooks and use `figure.savefig(...)` for another format or display the
+figure interactively. Source data, raw scores, simulator sampling, prior
+evaluation and model calls are all available.
+
+A `CohortPlot` compares the members of one configuration, such as the four priors.
+Its `draw(contexts, dependencies)` gets one context and one dependency mapping per
+member, in cohort order. The runner builds its dependencies while analyzing each
+run, draws it once every run of the launch is analyzed, and saves the figures in
+`runs/<configuration>/plots/<hook>/`. The four Gaussian plots in `gaussian/plots.py`
+are cohort plots.
 
 `gaussian/extensions.py::observation_histogram` is a complete working example
 accessing shared observations, the model class and the prior measure. The built-in

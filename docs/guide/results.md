@@ -70,8 +70,10 @@ metric = context.analysis.metrics()["bias"]
 value = metric.compute(context, context.dependencies(metric.needs))
 print(value)
 
-plot = context.analysis.plots()["inference"]
-figures = plot.draw(context, context.dependencies(plot.needs))
+# A cohort plot gets every run of a configuration, here of this run's configuration.
+cohort = [restore(path.parent, device="cpu") for path in sorted(context.run_dir.parent.glob("*/run.json"))]
+plot = context.analysis.cohort_plots()["posterior_errors"]
+figures = plot.draw(cohort, [member.dependencies(plot.needs) for member in cohort])
 try:
     output = Path("outputs/manual-plots")
     output.mkdir(parents=True, exist_ok=True)
@@ -82,7 +84,7 @@ finally:
         plt.close(figure)
 ```
 
-The built-in runner saves PNGs. Calling the same plot hook directly allows other
+The built-in runner saves PDFs. Calling the same plot hook directly allows other
 formats and interactive notebook display. Hooks of another analysis class, such as
 `gaussian.extensions.ExtendedAnalysis()`, can be called on the same context in the
 same way, to try a metric before adding it to `settings_analysis.py`. Close figures you create outside the

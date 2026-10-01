@@ -47,8 +47,8 @@ particle physics datasets in the future.
 | Eq. (6): HLD region | `nnpd.nre.inference.summarize_density` | `inference` product |
 | Eq. (7): projected HLD bounds and widths | `ratio_lower`, `ratio_upper` | `width` metric |
 | Eq. (8): mean coverage, width and bias | `gaussian/metrics.py` | `coverage`, `width`, `bias` metrics |
-| Figure 1: one- and two-dimensional projections | `inference` plot | `marginal-*` and `projection-*` figures |
-| Figure 2: estimates and HLD intervals per prior | `inference` plot | `estimates-*` figures |
+| Figure 1: one- and two-dimensional projections | `ratio_log_score` of the retained cases in the `inference` product | not drawn by the built-in plots |
+| Figure 2: estimates and HLD intervals per prior | `posterior_errors` cohort plot | `errorbars_ratios` figure |
 | Figure 3: metrics across priors and dimensions | `nnpd.results.comparison_plot` | built from saved metrics, see below |
 
 The [scientific notes](SCIENTIFIC_NOTES.md) map every quantity of the paper to its

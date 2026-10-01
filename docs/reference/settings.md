@@ -28,8 +28,8 @@ analysis.
 | `analysis` | Trusted `module:class` analysis: the registered products, metrics, and plots. |
 | `inference` | Truth design, observation ensembles, candidate measure/resolution, HLD levels, targets, score retention, and analysis limits. |
 | `verification` | Shared pairwise-ratio, reweighting, normalization, and showcase data. |
-| `metrics`, `plots` | Literal lists of registered hook names to run. |
-| `plotting` | Figure resolution, histogram sizes, prior samples, and displayed inference cases. |
+| `metrics`, `plots`, `cohort_plots` | Literal lists of registered hook names to run. `plots` are per model; `cohort_plots` compare the priors of each configuration. |
+| `plotting` | Histogram sizes, prior samples, and how the error-bar plots group truths. |
 
 `Choice` is rejected here: an analysis is one setting, and the latest one wins.
 `inference.truth_design` is `sobol` (default), `grid` or `size_adaptive`; see

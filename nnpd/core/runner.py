@@ -63,18 +63,25 @@ def _validate_analysis(settings: dict, analysis: Analysis) -> None:
 
     for name in products:
         visit(name)
-    for hooks in (analysis.metrics(), analysis.plots()):
+    for hooks in (analysis.metrics(), analysis.plots(), analysis.cohort_plots()):
         for name, hook in hooks.items():
             safe_name(name)
             for dependency in hook.needs:
                 visit(dependency)
     analysis.validate(settings)
-    for category, registry in (("metrics", analysis.metrics()), ("plots", analysis.plots())):
-        unknown = set(settings[category]) - registry.keys()
+    for category, registry in (("metrics", analysis.metrics()), ("plots", analysis.plots()),
+                               ("cohort_plots", analysis.cohort_plots())):
+        names = _selected(settings, category)
+        unknown = set(names) - registry.keys()
         if unknown:
             raise ValueError(f"Unknown {category}: {sorted(unknown)}")
-        if len(settings[category]) != len(set(settings[category])):
+        if len(names) != len(set(names)):
             raise ValueError(f"Duplicate names in {category}.")
+
+
+def _selected(settings: dict, category: str) -> list[str]:
+    """The hook names selected in the analysis settings; cohort_plots is optional."""
+    return settings.get(category, []) if category == "cohort_plots" else settings[category]
 
 
 def _launch_values(training_settings: dict) -> dict:
@@ -255,10 +262,26 @@ def _clear_results(run_dir: Path) -> None:
     (run_dir / "metrics.json").unlink(missing_ok=True)
     for name in ("metrics", "plots"):
         shutil.rmtree(run_dir / name, ignore_errors=True)
+    shutil.rmtree(run_dir.parent / "plots", ignore_errors=True)  # the cohort plots include this run
+
+
+def _save_figures(figures: dict, folder: Path) -> None:
+    """Save each figure as folder/<stem>.pdf, then close it."""
+    from matplotlib import pyplot as plt
+    try:
+        for stem, figure in figures.items():
+            folder.mkdir(parents=True, exist_ok=True)
+            figure.savefig(folder / f"{safe_name(stem)}.pdf", bbox_inches="tight")
+    finally:
+        for figure in figures.values():
+            plt.close(figure)
 
 
 def analyze_run(context: Context) -> dict:
-    """Compute the selected metrics and plots of one run, replacing earlier ones. Never trains."""
+    """Compute the selected metrics and plots of one run, replacing earlier ones. Never trains.
+
+    It also builds what the selected cohort plots need; analyze_cohort draws them later.
+    """
     settings = context.analysis_settings
     _clear_results(context.run_dir)
     metrics = {}
@@ -267,22 +290,27 @@ def analyze_run(context: Context) -> dict:
         value = hook.compute(context, context.dependencies(hook.needs))
         metrics[name] = _json_value(value)
         write_json(context.run_dir / "metrics" / f"{safe_name(name)}.json", metrics[name])
-    if settings["plots"]:
-        from matplotlib import pyplot as plt
-        for name in settings["plots"]:
-            hook = context.analysis.plots()[name]
-            figures = hook.draw(context, context.dependencies(hook.needs))
-            try:
-                for stem, figure in figures.items():
-                    path = context.run_dir / "plots" / safe_name(name) / f"{safe_name(stem)}.png"
-                    path.parent.mkdir(parents=True, exist_ok=True)
-                    figure.savefig(path, dpi=settings["plotting"]["dpi"], bbox_inches="tight")
-            finally:
-                for figure in figures.values():
-                    plt.close(figure)
+    for name in settings["plots"]:
+        hook = context.analysis.plots()[name]
+        _save_figures(hook.draw(context, context.dependencies(hook.needs)),
+                      context.run_dir / "plots" / safe_name(name))
+    for name in _selected(settings, "cohort_plots"):
+        context.dependencies(context.analysis.cohort_plots()[name].needs)
     write_json(context.run_dir / "metrics.json", metrics)
     save_references(context)
     return metrics
+
+
+def analyze_cohort(contexts: list[Context]) -> None:
+    """Draw the selected cohort plots of one configuration's analyzed runs into <configuration>/plots."""
+    members = contexts[0].experiment.members(contexts[0].training_settings)
+    contexts = sorted(contexts, key=lambda context: members.index(context.member))
+    folder = contexts[0].run_dir.parent / "plots"
+    shutil.rmtree(folder, ignore_errors=True)
+    for name in _selected(contexts[0].analysis_settings, "cohort_plots"):
+        hook = contexts[0].analysis.cohort_plots()[name]
+        _save_figures(hook.draw(contexts, [context.dependencies(hook.needs) for context in contexts]),
+                      folder / safe_name(name))
 
 
 def save_references(context: Context) -> None:
@@ -378,8 +406,9 @@ def _analyze(context: Context, source: str) -> None:
     write_json(context.run_dir / "analysis.json", {**record, "state": "complete", "time": utc_now()})
 
 
-def _finish_launch(launch: _Launch, run_dirs: list[Path], stage: str, launch_id: str) -> None:
-    """Latest settings win: keep only this launch's runs, and the cache of the last KEEP_SETTINGS trainings.
+def _finish_launch(launch: _Launch, run_dirs: list[Path], stage: str, launch_id: str, runtime: Runtime) -> None:
+    """Draw the cohort plots, then latest settings win: keep only this launch's runs, and the cache of
+    the last KEEP_SETTINGS trainings.
 
     The settings files the launch started from are copied byte for byte into the output folder.
     Only the process that finishes a launch last does this, so a failed or unfinished launch deletes nothing.
@@ -388,7 +417,11 @@ def _finish_launch(launch: _Launch, run_dirs: list[Path], stage: str, launch_id:
     with Store(root).lock("experiment", "history"):
         marks = [_read_json(path / "status.json", {}) for path in run_dirs]
         if any(mark.get("launch") != launch_id for mark in marks):
-            return  # other workers of this launch are still running; the last one cleans up
+            return  # other workers of this launch are still running; the last one finishes
+        if stage != "train":
+            for configuration in sorted({path.parent for path in run_dirs}):
+                analyze_cohort([_open(path, runtime, launch.analysis, launch.analysis_settings)
+                                for path in run_dirs if path.parent == configuration])
         used = set()
         for path in run_dirs:
             for relative in _read_json(path / "artifacts.json")["items"].values():
@@ -413,7 +446,7 @@ def _finish_launch(launch: _Launch, run_dirs: list[Path], stage: str, launch_id:
             if path.resolve() != (root / path.name).resolve():
                 shutil.copyfile(path, root / path.name)
         keep = {item for entry in history for item in entry["uses"]}
-        current = set(run_dirs)
+        current = set(run_dirs) | {path.parent / "plots" for path in run_dirs}
         for path in (root / "runs").glob("*/*"):
             if path not in current:
                 shutil.rmtree(path)
@@ -436,8 +469,9 @@ def execute(stage: str = "run", *, profile: str | None = None, settings_dir: str
     'train' trains the models of settings_training.py and resets their analysis.
     'analyze' analyzes the latest trained models with settings_analysis.py; it never trains.
     'run' does both. 'jobs': torchrun workers process disjoint runs; 'ddp': workers train
-    each model together and only rank zero analyzes. After success, runs of earlier settings
-    are removed, the cache keeps what the last KEEP_SETTINGS trainings used, and the settings
+    each model together and only rank zero analyzes. Once every run is analyzed, the cohort
+    plots of each configuration are drawn. After success, runs of earlier settings are
+    removed, the cache keeps what the last KEEP_SETTINGS trainings used, and the settings
     files are copied into the output folder.
     """
     if stage not in STAGES:
@@ -481,7 +515,7 @@ def execute(stage: str = "run", *, profile: str | None = None, settings_dir: str
                 completed.append(run_dir)
             runtime.barrier()
         if runtime.leader:
-            _finish_launch(launch, run_dirs, stage, launch_id)
+            _finish_launch(launch, run_dirs, stage, launch_id, runtime)
     finally:
         runtime.close()
     return completed

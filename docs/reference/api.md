@@ -9,9 +9,9 @@ NNPD itself is not required to build these pages.
 
 | Module | Main responsibilities |
 |---|---|
-| `nnpd.core.api` | `Experiment`, `Analysis`, `Context`, `Product`, `Metric`, `Plot`, `load_experiment`, `load_analysis`. |
+| `nnpd.core.api` | `Experiment`, `Analysis`, `Context`, `Product`, `Metric`, `Plot`, `CohortPlot`, `load_experiment`, `load_analysis`. |
 | `nnpd.core.settings` | `Choice`, `Variant`, `expand_sweep`, `load_settings` and selectors. |
-| `nnpd.core.runner` | `plan`, `execute`, `restore`, `analyze_run`, `expand_jobs`, `verify_store`. |
+| `nnpd.core.runner` | `plan`, `execute`, `restore`, `analyze_run`, `analyze_cohort`, `expand_jobs`, `verify_store`. |
 | `nnpd.core.storage` | `Store`, `Artifact`, `Writer`, manifests and atomic writes. |
 | `nnpd.core.runtime` | `Runtime` and process/device coordination. |
 | `nnpd.results` | `runs`, `export_csv`, `comparison_plot`. |
@@ -20,7 +20,7 @@ The usual convenience imports are:
 
 ```python
 from nnpd import (
-    Analysis, Choice, Experiment, Metric, Plot, Product,
+    Analysis, Choice, CohortPlot, Experiment, Metric, Plot, Product,
     execute, expand_sweep, load_analysis, load_experiment, load_settings, plan, restore,
 )
 ```

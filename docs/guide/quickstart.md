@@ -45,7 +45,7 @@ The settings are split into two files:
 | File | Decides | Sections |
 |---|---|---|
 | `settings_training.py` | What is trained | `problem`, `cohort`, `priors`, `data`, `model`, `training`, `runtime` |
-| `settings_analysis.py` | What is computed from the trained models | `inference`, `verification`, `metrics`, `plots`, `plotting` |
+| `settings_analysis.py` | What is computed from the trained models | `inference`, `verification`, `metrics`, `plots`, `cohort_plots`, `plotting` |
 
 In each file, `SETTINGS` is the complete dictionary, and each profile (`default`,
 `paper`, `smoke`) is a named set of changes to it. `--profile` selects the same
@@ -162,7 +162,8 @@ outputs/smoke/
     analysis.json         analysis settings and state: running, complete, or failed
     artifacts.json        which cache entries this run uses
     metrics.json          all metrics, also one file each in metrics/
-    plots/<plot>/*.png    figures
+    plots/<plot>/*.pdf    figures of this model (none by default)
+  runs/baseline-<hash>/plots/<cohort plot>/*.pdf   figures comparing the priors of a configuration
 ```
 
 The saved settings files, each `run.json` and `analysis.json`, and the `source/`

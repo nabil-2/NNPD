@@ -14,7 +14,7 @@ observations ---+                +--> bias
 candidates ----+--> inference ---+--> width
                |                +--> resolution
 model ---------+                +--> posterior / exact_reference
-                                +--> inference plots
+                                +--> posterior_errors plots
 ```
 
 `observations` saves truths and their observation ensembles. `candidates` saves
@@ -48,12 +48,24 @@ is disabled. The other ratio metrics require compatible inference targets.
 Undefined association values use `None`, not NaN. The source API documents the
 functions in `gaussian.metrics`; metric names are the registry keys above.
 
-## Plot hooks
+## Plots
 
-The built-in names are `training`, `prior`, `inference`, `pairwise`, `reweighting`,
-and `showcase`. A hook may return multiple figures. In particular, inference
-plots include parameter estimates and diagnostic marginal/pairwise projections.
-These are examples, not a fixed publication style.
+The built-in plots are cohort plots: each figure shows the priors of one
+configuration side by side, and is saved as a PDF in
+`runs/<configuration>/plots/<plot>/`. Select them in `cohort_plots`:
+
+| Registry name | Figures |
+|---|---|
+| `priors` | `prior_contours` (`prior_densities` for one parameter): each prior over the first two parameters, normalized over them; `prior_sample_histograms`: samples from it. |
+| `training` | `training_<prior>_prior`: loss, validation accuracy and AUC per epoch, and the test ROC curve; `all_roc_curves`: every test ROC curve together. |
+| `posterior_errors` | `errorbars`: mode against truth with the HLD regions, per parameter; `error_and_hld_width`: bias and the narrowest HLD width against the truth. With the `_ratios` suffix for the normalized likelihood ratio, without for the posterior; each only when its inference target is enabled. |
+| `verifications` | `ratio_violins`: the estimated ratio at a few θ for observations from the prior's own evidence (mean 1 if calibrated); `reweighted_distributions_<θ0>_<θ1>`: the fixed showcase pair; `log_ratio_error_vs_distance`, `log_ratio_exact_vs_predicted`: pairwise log-ratio errors; `reweighting_swd_vs_distance`, `reweighting_summary`: sliced Wasserstein distance and ESS of the reweighting pairs. |
+
+The error-bar plots average the truths that share a true value along each
+parameter. When there are more than `plotting.truth_bins` distinct values, as
+with Sobol truths, they average over that many equal-width bins instead.
+`plots` selects per-model plots saved in each run folder; there are none by
+default. These plots are examples, not a fixed publication style.
 
 ## Add analysis after training
 

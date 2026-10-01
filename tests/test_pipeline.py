@@ -267,14 +267,26 @@ class ExtraPlot(GaussianAnalysis):
 
 
 def test_plots_and_result_readers(tiny, tmp_path):
+    tiny.training["cohort"]["priors"] = ["uniform", "grid"]
+    tiny.training["problem"]["dimension"] = 2
     tiny.analysis["analysis"] = "test_pipeline:ExtraPlot"
-    tiny.analysis["plots"] = ["training", "prior", "inference", "pairwise", "reweighting", "showcase", "custom"]
+    tiny.analysis["plots"] = ["custom"]
+    tiny.analysis["cohort_plots"] = ["priors", "training", "posterior_errors", "verifications"]
     tiny.analysis["verification"]["showcase"]["samples"] = 64
     path = tiny.execute()[0]
-    assert len(list((path / "plots").rglob("*.png"))) >= 8
-    assert (path / "plots" / "custom" / "anything.png").stat().st_size > 1000
+    assert (path / "plots" / "custom" / "anything.pdf").stat().st_size > 1000
+    cohort = path.parent / "plots"
+    assert {item.relative_to(cohort).as_posix() for item in cohort.rglob("*.pdf")} == {
+        "priors/prior_contours.pdf", "priors/prior_sample_histograms.pdf",
+        "training/training_uniform_prior.pdf", "training/training_grid_prior.pdf", "training/all_roc_curves.pdf",
+        *(f"posterior_errors/{name}{suffix}.pdf" for name in ("errorbars", "error_and_hld_width")
+          for suffix in ("", "_ratios")),
+        *(f"verifications/{name}.pdf" for name in (
+            "ratio_violins", "reweighted_distributions_3.0_7.0", "log_ratio_error_vs_distance",
+            "log_ratio_exact_vs_predicted", "reweighting_swd_vs_distance", "reweighting_summary"))}
+    assert not list(tiny.output.rglob("*.png"))
     records = runs(tiny.output)
-    assert len(records) == 1
+    assert len(records) == 2
     table = export_csv(tiny.output, tmp_path / "summary.csv", {"bce": "metrics.classification.bce"})
     assert "bce" in table.read_text()
     fig = comparison_plot(records, "settings.problem.dimension", "metrics.classification.auc")
@@ -336,6 +348,6 @@ def test_framework_has_no_gaussian_settings_dependency(tiny):
     tiny.training = {"experiment": "test_pipeline:IndependentExample", "seed": 4, "sample_size": 10,
                      "output": str(tiny.output), "runtime": tiny.training["runtime"]}
     tiny.analysis = {"analysis": "test_pipeline:IndependentAnalysis", "metrics": ["parameter_count"],
-                     "plots": [], "plotting": {"dpi": 100}}
+                     "plots": []}
     path = tiny.execute()[0]
     assert json.loads((path / "metrics.json").read_text()) == {"parameter_count": 2}

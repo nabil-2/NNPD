@@ -32,7 +32,8 @@ def test_unknown_truth_design_is_rejected(tiny):
 def test_cli_train_analyze_verify_and_saved_settings_copies(tiny, capsys):
     tiny.analysis["analysis"] = "gaussian.extensions:ExtendedAnalysis"
     tiny.analysis["metrics"] += ["median_absolute_bias", "parameter_count"]
-    tiny.analysis["plots"] = ["observation_histogram", "inference"]
+    tiny.analysis["plots"] = ["observation_histogram"]
+    tiny.analysis["cohort_plots"] = ["posterior_errors"]
     tiny.training["problem"]["dimension"] = 2
     tiny.training["problem"]["infer"] = ["mean:*", "std:1"]
     tiny.analysis["inference"]["truth_points_per_axis"] = 2
@@ -44,8 +45,10 @@ def test_cli_train_analyze_verify_and_saved_settings_copies(tiny, capsys):
     assert record["analysis"]["settings"]["analysis"] == "gaussian.extensions:ExtendedAnalysis"
     assert record["metrics"]["parameter_count"]["trainable_parameters"] > 0
     assert record["metrics"]["median_absolute_bias"]["median_absolute"] >= 0
-    figures = list((Path(record["path"]) / "plots").rglob("*.png"))
-    assert any("projection" in item.name for item in figures)
+    path = Path(record["path"])
+    assert (path / "plots" / "observation_histogram" / "first-ensemble.pdf").is_file()
+    errorbars = path.parent / "plots" / "posterior_errors" / "errorbars_ratios.pdf"
+    assert errorbars.is_file()
     main(["verify", *args])
     assert "verified" in capsys.readouterr().out
     models = list((tiny.output / "cache" / "model").glob("*/weights.pt"))
@@ -58,6 +61,9 @@ def test_cli_train_analyze_verify_and_saved_settings_copies(tiny, capsys):
         assert (tiny.output / name).read_bytes() == (tiny.folder / name).read_bytes()
     main(["analyze", "--settings-dir", str(tiny.output)])
     assert [item["path"] for item in runs(tiny.output)] == [record["path"]]
+    assert errorbars.is_file()  # the cohort plots survive the cleanup of earlier runs
+    main(["train", *args])
+    assert not errorbars.exists()  # training starts the analysis over
     for name in names:
         assert (tiny.output / name).read_bytes() == (tiny.folder / name).read_bytes()
 

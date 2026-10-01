@@ -79,7 +79,8 @@ magically invalidate a product.
 
 Metrics return small JSON-compatible values. Products hold reusable numeric
 arrays and structured metadata. Plot hooks return a mapping of filename stems to
-Matplotlib figures; the runner writes PNGs and closes them.
+Matplotlib figures; the runner writes PDFs and closes them. A cohort plot gets one
+context per member of a configuration and is drawn once all of them are analyzed.
 
 The full [extension contract](../EXTENDING.md), [storage schema](../STORAGE.md),
 and [API reference](../reference/api.md) provide implementation details.

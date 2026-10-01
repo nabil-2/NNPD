@@ -33,7 +33,7 @@ scientific convergence study. The default command only prints a plan.
 | **Analysis** | What is computed from the trained models: products, metrics, and plots. |
 | **Product** | A reusable dataset with declared dependencies and a persistent cache. |
 | **Metric** | A measurement from shared products, the model, or both. |
-| **Plot** | Ordinary plotting code with access to the full experiment context. |
+| **Plot** | Ordinary plotting code with access to the full experiment context, for one model or across the priors of a configuration. |
 
 There is no fixed number of metrics or plots. Several metrics can share a product
 without resampling its data or retraining a model. Sweep alternatives vary **one

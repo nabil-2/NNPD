@@ -140,7 +140,7 @@ settings_analysis.py       What is computed from trained models: analysis settin
 run.py                     Thin Python entry point
 nnpd/
   core/
-    api.py                 Experiment and Analysis; Product, Metric, Plot, Context
+    api.py                 Experiment and Analysis; Product, Metric, Plot, CohortPlot, Context
     settings.py            Explicit Choice, OFAT expansion, settings loading
     runner.py              Planning, execution, restore, integrity verification
     storage.py             Atomic artifact store and array/checkpoint access
@@ -159,7 +159,7 @@ gaussian/
   evaluation.py            Shared truth ensembles, candidates, inference products
   diagnostics.py           Pairwise ratios, reweighting, normalization datasets
   metrics.py               Independent metric functions
-  plots.py                 Ordinary Matplotlib plotting functions
+  plots.py                 Matplotlib figures comparing the priors of a configuration
   analysis.py              What is computed: named products, metrics and plots
   extensions.py            Working custom metric/model metric/plot example
 notebooks/                 Three thin executable notebooks; no function definitions
@@ -252,7 +252,8 @@ available. See [Testing and validation](docs/guide/testing.md).
 
 Run folders contain the resolved training settings, cohort member, training
 status, the analysis settings and state, source-snapshot references, metrics,
-plots and relative artifact references.
+plots and relative artifact references. Each configuration folder also holds the
+figures that compare its priors side by side. All figures are PDFs.
 Shared datasets and model weights live in a content-addressed store; multiple
 metrics do not duplicate them. Numeric arrays use `.npy` with optional memory
 mapping; metadata uses JSON; models use tensor state dictionaries loaded with

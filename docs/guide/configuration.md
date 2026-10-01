@@ -12,7 +12,7 @@ for both files when none is given.
 | Settings file | Class it names | Other sections |
 |---|---|---|
 | `settings_training.py` | `"experiment"`: an `Experiment` | `output`, `seed`, `problem`, `cohort`, `priors`, `data`, `model`, `training`, `runtime` |
-| `settings_analysis.py` | `"analysis"`: an `Analysis` | `inference`, `verification`, `metrics`, `plots`, `plotting` |
+| `settings_analysis.py` | `"analysis"`: an `Analysis` | `inference`, `verification`, `metrics`, `plots`, `cohort_plots`, `plotting` |
 
 The [settings reference](../reference/settings.md) displays both complete files
 directly, so names and default values are not maintained in a separate copy.

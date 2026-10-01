@@ -42,8 +42,10 @@ SETTINGS = {
     },
     "metrics": ["classification", "bias", "coverage", "width", "resolution",
                 "posterior", "exact_reference", "pairwise", "reweighting", "normalization"],
-    "plots": ["training", "prior", "inference", "pairwise", "reweighting", "showcase"],
-    "plotting": {"dpi": 140, "bins": 100, "prior_points": 200_000, "max_inference_cases": 200},
+    "plots": [],                    # figures of each trained model, saved in its run folder
+    "cohort_plots": ["priors", "training", "posterior_errors", "verifications"],  # all priors of a configuration, in runs/<configuration>/plots
+    "plotting": {"bins": 100, "prior_points": 200_000,
+                 "truth_bins": 25},  # error bars: each distinct true value, or this many bins when there are more
 }
 
 

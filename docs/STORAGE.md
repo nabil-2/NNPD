@@ -35,7 +35,8 @@ outputs/smoke/
         artifacts.json
         metrics.json
         metrics/<metric-name>.json
-        plots/<plot-name>/<figure-name>.png
+        plots/<plot-name>/<figure-name>.pdf
+      plots/<cohort-plot-name>/<figure-name>.pdf   across the configuration's cohort
     training_learning_rate-<configuration-hash>/...
   locks/...
 ```
@@ -53,7 +54,8 @@ An output root holds one experiment. After a launch succeeds:
 
 - `runs/` holds only the run folders of the latest training. Runs of earlier
   training settings are removed. `train` starts each run's analysis over;
-  `analyze` replaces each run's metrics, plots and `analysis.json`.
+  `analyze` replaces each run's metrics, plots and `analysis.json`, and each
+  configuration's cohort plots.
 - The settings files the launch used are copied byte for byte into the output
   folder: `train` copies `settings_training.py`, `analyze` copies
   `settings_analysis.py`, and `run` copies both. Run them again with

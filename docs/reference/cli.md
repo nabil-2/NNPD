@@ -15,7 +15,7 @@ public execution functions. Run `python run.py --help` for the parser's help tex
 |---|---|---|
 | `plan` | both settings files | Default. Resolve and validate the sweep and print JSON jobs with training and analysis workload estimates; computes nothing. |
 | `train` | `settings_training.py` | Sample/reuse training data, train/reuse models, and stop at checkpoints. Resets each run's analysis. |
-| `analyze` | `settings_analysis.py`, plus `output` and `runtime` from `settings_training.py` | Analyze the models of the latest successful training. Never trains. Replaces each run's metrics and plots. |
+| `analyze` | `settings_analysis.py`, plus `output` and `runtime` from `settings_training.py` | Analyze the models of the latest successful training. Never trains. Replaces each run's metrics and plots and each configuration's cohort plots. |
 | `run` | both settings files | `train`, then `analyze`. |
 | `verify` | `output` from `settings_training.py` | Deep-check committed artifacts in the output folder. |
 
